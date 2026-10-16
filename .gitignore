@@ -1,0 +1,5 @@
+# Rendered images and GIFs; recreate them from the specs.
+output/
+
+__pycache__/
+*.pyc

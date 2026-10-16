@@ -1,0 +1,7 @@
+{
+  "edits": [
+    {"layer": "near_amber_eye", "op": "pixels", "points": [[1, 1]], "color": "p"},
+    {"layer": "near_amber_eye", "op": "pixels", "points": [[2, 2]], "color": "o"},
+    {"layer": "far_amber_eye", "op": "pixels", "points": [[1, 2]], "color": "o"}
+  ]
+}

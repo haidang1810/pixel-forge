@@ -1,0 +1,78 @@
+{
+  "normal_export": {
+    "returncode": 0,
+    "stdout": "{\"files\": {\"png\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\normal.png\", \"preview\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\normal.preview.png\", \"report\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\normal.report.json\", \"grid\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\normal.grid.png\"}, \"size\": [4, 4], \"warnings\": [\"Artwork touches a canvas edge; check intended padding or tile seams.\"]}",
+    "stderr": ""
+  },
+  "boolean_size": {
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "error: size: expected integer 1..512",
+    "outputs_present": false
+  },
+  "unknown_hidden_op": {
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "error: layers[0] (base).ops[0]: unknown fields ['outline']",
+    "outputs_present": false
+  },
+  "partial_alpha": {
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "error: palette.r: version 1 supports alpha 00 or FF only",
+    "outputs_present": false
+  },
+  "duplicate": {
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "error: duplicate JSON key: version"
+  },
+  "invalid_patch": {
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "error: layers[0] (base).ops[0]: coordinate (4, 0) outside canvas (4, 4)",
+    "prior_revision_intact": true
+  },
+  "nonfinite_json": {
+    "returncode": 0,
+    "stdout": "{\"files\": {\"png\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\nan-export.png\", \"preview\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\nan-export.preview.png\", \"report\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\nan-export.report.json\"}, \"size\": [4, 4], \"warnings\": [\"Artwork touches a canvas edge; check intended padding or tile seams.\"]}",
+    "stderr": "",
+    "report_contains_NaN": true
+  },
+  "grid_scale_one": {
+    "returncode": 0,
+    "stdout": "{\"files\": {\"png\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\scale-one.png\", \"preview\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\scale-one.preview.png\", \"report\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\scale-one.report.json\", \"grid\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\scale-one.grid.png\"}, \"size\": [4, 4], \"warnings\": [\"Artwork touches a canvas edge; check intended padding or tile seams.\"]}",
+    "stderr": "",
+    "canvas_colors": [
+      [
+        69,
+        75,
+        90
+      ]
+    ]
+  },
+  "stale_grid": {
+    "returncode": 0,
+    "stdout": "{\"files\": {\"png\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\normal.png\", \"preview\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\normal.preview.png\", \"report\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\normal.report.json\"}, \"size\": [4, 4], \"warnings\": [\"Artwork touches a canvas edge; check intended padding or tile seams.\"]}",
+    "stderr": "",
+    "grid_unchanged": true,
+    "new_native_pixel": [
+      0,
+      0,
+      255,
+      255
+    ],
+    "old_grid_pixel": [
+      255,
+      0,
+      0
+    ]
+  },
+  "hardlink_patch": {
+    "returncode": 0,
+    "stdout": "{\"source\": \"D:\\\\dev\\\\projects\\\\draw-2d-asset\\\\evaluation\\\\tool-review\\\\hardlink-revision.json\"}",
+    "stderr": "",
+    "original_changed": true,
+    "source_and_output_samefile": true
+  }
+}

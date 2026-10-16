@@ -1,0 +1,18 @@
+test_cli_exports_png_and_keeps_source_unchanged (renderer_tests.RendererTests.test_cli_exports_png_and_keeps_source_unchanged) ... ok
+test_cli_invalid_input_writes_no_exports (renderer_tests.RendererTests.test_cli_invalid_input_writes_no_exports) ... ok
+test_cli_patch_recolors_and_renders_new_revision (renderer_tests.RendererTests.test_cli_patch_recolors_and_renders_new_revision) ... ok
+test_cli_protects_source_from_report_path_collision (renderer_tests.RendererTests.test_cli_protects_source_from_report_path_collision) ... ok
+test_duplicate_json_keys_are_reported (renderer_tests.RendererTests.test_duplicate_json_keys_are_reported) ... ok
+test_erasing_upper_layer_reveals_lower_layer (renderer_tests.RendererTests.test_erasing_upper_layer_reveals_lower_layer) ... ok
+test_hidden_layers_do_not_contribute_but_are_validated (renderer_tests.RendererTests.test_hidden_layers_do_not_contribute_but_are_validated) ... ok
+test_invalid_art_is_rejected_instead_of_silently_clipped (renderer_tests.RendererTests.test_invalid_art_is_rejected_instead_of_silently_clipped) ... ok
+test_layers_preserve_native_rgba_and_transparent_holes (renderer_tests.RendererTests.test_layers_preserve_native_rgba_and_transparent_holes) ... ok
+test_patch_is_layer_local_and_does_not_mutate_source (renderer_tests.RendererTests.test_patch_is_layer_local_and_does_not_mutate_source) ... ok
+test_patch_rejects_unknown_layer_and_unknown_palette_color (renderer_tests.RendererTests.test_patch_rejects_unknown_layer_and_unknown_palette_color) ... ok
+test_primitives_rasterize_without_new_colors (renderer_tests.RendererTests.test_primitives_rasterize_without_new_colors) ... ok
+test_rect_size_and_operation_order (renderer_tests.RendererTests.test_rect_size_and_operation_order) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.626s
+
+OK

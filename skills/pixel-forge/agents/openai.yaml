@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pixel Forge"
+  short_description: "Draw editable pixel game assets and animated characters with JSON and code"
+  default_prompt: "Use $pixel-forge to create an original 32x32 pixel game asset with editable JSON and a transparent PNG, without image generation or reference art."

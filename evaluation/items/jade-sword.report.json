@@ -1,0 +1,91 @@
+{
+  "renderer": "pixel-art-json/1",
+  "size": [
+    32,
+    32
+  ],
+  "mode": "RGBA",
+  "opaque_pixels": 208,
+  "transparent_pixels": 816,
+  "bbox": [
+    4,
+    3,
+    29,
+    29
+  ],
+  "colors": {
+    "#00000000": 816,
+    "#182335FF": 103,
+    "#194D4BFF": 5,
+    "#31556CFF": 13,
+    "#398E75FF": 9,
+    "#4D8B9BFF": 10,
+    "#88C7C6FF": 31,
+    "#B78140FF": 12,
+    "#DAF2DEFF": 14,
+    "#EFC773FF": 8,
+    "#FFF0ADFF": 3
+  },
+  "layers": [
+    {
+      "name": "blade-outline",
+      "visible": true,
+      "bbox": [
+        12,
+        3,
+        29,
+        20
+      ]
+    },
+    {
+      "name": "blade-steel",
+      "visible": true,
+      "bbox": [
+        14,
+        4,
+        27,
+        18
+      ]
+    },
+    {
+      "name": "grip",
+      "visible": true,
+      "bbox": [
+        7,
+        18,
+        15,
+        26
+      ]
+    },
+    {
+      "name": "guard",
+      "visible": true,
+      "bbox": [
+        8,
+        15,
+        19,
+        25
+      ]
+    },
+    {
+      "name": "pommel",
+      "visible": true,
+      "bbox": [
+        4,
+        23,
+        11,
+        29
+      ]
+    }
+  ],
+  "warnings": [],
+  "meta": {
+    "description": "A diagonal jade-hilt sword, pale steel blade and warm gold fittings",
+    "light": "upper left",
+    "source": "Original JSON operations; no reference images or image generation",
+    "pivot": [
+      16,
+      29
+    ]
+  }
+}

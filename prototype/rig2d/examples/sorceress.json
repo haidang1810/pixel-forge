@@ -1,0 +1,45 @@
+{
+  "name": "sorceress",
+  "size": [52, 52],
+  "rig": "chibi",
+  "root_x": 0.42,
+  "outline": "#241A33",
+  "materials": {
+    "body":    ["#1C2B63", "#3358B8", "#6E93E8"],
+    "legs":    ["#221C38", "#332B52", "#4A4170"],
+    "boots":   ["#6B1E24", "#A8323C", "#D9606A"],
+    "skin":    ["#A85A32", "#E8975E", "#F9CBA0"],
+    "hat":     ["#8E7C56", "#C4B084", "#EFE3C2"],
+    "hair":    ["#8E86B8", "#C9C3E6", "#F6F3FF"],
+    "gold":    ["#8A6A2A", "#D9B34A", "#F7E39A"],
+    "wood":    ["#3A2A1E", "#5E4134", "#8A6244"],
+    "feather": ["#9AA3B8", "#D5DBE6", "#FFFFFF"]
+  },
+  "extras": [
+    {"name": "hair_back", "bone": "head", "shape": "poly", "mat": "hair", "z": 37, "group": "hair",
+     "points": [[12, -6], [8, -9.5], [1, -10.5], [-4, -9.5], [-8.5, -5], [-10, 0], [-8, 5], [-9, 9.5], [-5, 10], [-3.5, 5.5], [-3, -1], [-3.5, -6], [2, -8], [8, -6.5]]},
+    {"name": "hair_lock", "bone": "head", "shape": "poly", "mat": "hair", "z": 39, "group": "hair",
+     "points": [[5.5, 6.5], [7.5, 8], [8.5, 4], [8, -1], [6, 1], [6.5, 5]]},
+    {"name": "hat_cone", "bone": "head", "shape": "poly", "mat": "hat", "z": 45, "group": "hat",
+     "points": [[5, -9], [5, 8.5], [8, 9.5], [12, 7], [13, 1], [12, -7], [8, -9.5]]},
+    {"name": "hat_brim", "bone": "head", "shape": "ellipse", "at": [7.5, 0.2], "rx": 12, "ry": 2.2, "mat": "hat", "z": 46, "group": "hat"},
+    {"name": "hat_band", "bone": "head", "shape": "poly", "mat": "gold", "z": 46, "group": "hat",
+     "points": [[8.4, -8], [9.6, -7.6], [9.6, 7.2], [8.4, 7.6]]},
+    {"name": "feather", "bone": "head", "shape": "poly", "mat": "feather", "z": 44, "group": "feather",
+     "points": [[11, -7], [13, -9], [17, -12], [20, -14], [21, -16.5], [18.5, -16], [15, -13], [12, -10]]},
+    {"name": "robe", "bone": "spine", "shape": "poly", "mat": "body", "z": 55, "group": "torso",
+     "points": [[2, -4], [2, 4.6], [-3, 5.6], [-7, 6.6], [-8.5, 2], [-7, -3], [-3, -4.2]]},
+    {"name": "trim", "bone": "spine", "shape": "poly", "mat": "gold", "z": 56, "group": "torso",
+     "points": [[1.4, -4.1], [2.7, -3.8], [2.7, 4.5], [1.4, 4.8]]},
+    {"name": "staff", "bone": "spine", "shape": "poly", "mat": "wood", "z": 64, "group": "staff",
+     "points": [[9, -5], [10.6, -5.9], [-2, 5.2], [-3.6, 4.5]]}
+  ],
+  "stamps": [
+    {"bone": "head", "at": [4.6, 4.4], "rows": ["oo"], "colors": {"o": "#241A33"}}
+  ],
+  "anims": [
+    {"preset": "idle", "frames": 4},
+    {"preset": "walk", "frames": 8, "stride": 22},
+    {"preset": "attack"}
+  ]
+}

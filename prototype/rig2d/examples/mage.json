@@ -1,0 +1,44 @@
+{
+  "name": "mage",
+  "size": [48, 48],
+  "rig": "chibi",
+  "outline": "#1B1830",
+  "materials": {
+    "body":  ["#3B2A6B", "#5A43A0", "#8A72D6"],
+    "legs":  ["#2A2148", "#3B2E63", "#55468A"],
+    "boots": ["#3B2A26", "#5E4134", "#86604A"],
+    "skin":  ["#A8645A", "#E3A07E", "#F7D2B0"],
+    "hat":   ["#3B2A6B", "#5A43A0", "#8A72D6"],
+    "beard": ["#9AA3B8", "#D5DBE6", "#FFFFFF"],
+    "gold":  ["#937047", "#D9B773", "#FFF0B0"],
+    "wood":  ["#5E4134", "#86604A", "#B98A5E"],
+    "orb":   ["#2E8C8C", "#5FD3C4", "#D8FFF4", "#FFFFFF"]
+  },
+  "parts": {
+    "upper_n": {"r": [2.1, 2.0]}, "fore_n": {"r": [1.9, 2.9]},
+    "upper_f": {"r": [2.1, 2.0]}, "fore_f": {"r": [1.9, 2.9]}
+  },
+  "extras": [
+    {"name": "robe", "bone": "spine", "shape": "poly", "mat": "body", "z": 55, "group": "torso",
+     "points": [[5, -4.2], [5, 4.5], [-3, 5.5], [-9.5, 6.8], [-10, 0], [-9.5, -6.2], [-3, -5]]},
+    {"name": "hem", "bone": "spine", "shape": "poly", "mat": "gold", "z": 56, "group": "torso",
+     "points": [[-8.6, -6.3], [-8.6, 6.6], [-9.7, 6.9], [-9.9, -6.4]]},
+    {"name": "beard", "bone": "head", "shape": "poly", "mat": "beard", "z": 43, "group": "head",
+     "points": [[5.5, 1.5], [5.5, 7.6], [2, 7.4], [-2.5, 5.2], [-4.5, 3.2], [0, 0.8]]},
+    {"name": "nose", "bone": "head", "shape": "ellipse", "at": [6, 7], "rx": 1.4, "ry": 1.2, "mat": "skin", "z": 44, "group": "nose"},
+    {"name": "hat", "bone": "head", "shape": "poly", "mat": "hat", "z": 45, "group": "hat",
+     "points": [[9.5, -6], [9.5, 6.5], [13, 4], [21, -6], [18.5, -6.5], [13, -4.5]]},
+    {"name": "brim", "bone": "head", "shape": "ellipse", "at": [9.4, 0.6], "rx": 9, "ry": 1.6, "mat": "hat", "z": 46, "group": "hat"},
+    {"name": "band", "bone": "head", "shape": "poly", "mat": "gold", "z": 46, "group": "hat",
+     "points": [[10.3, -5.2], [11.6, -4.8], [11.6, 5.6], [10.3, 6.2]]},
+    {"name": "staff", "bone": "weapon_n", "shape": "capsule", "span": [-5, 17], "r": 0.8, "mat": "wood", "z": 61, "group": "staff"},
+    {"name": "orb", "bone": "weapon_n", "shape": "ellipse", "at": [18.5, 0], "rx": 2.3, "ry": 2.3, "mat": "orb", "z": 61, "group": "staff"}
+  ],
+  "stamps": [
+    {"bone": "head", "at": [8, 3], "rows": ["bbb", "..o"], "colors": {"b": "#FFFFFF", "o": "#1B1830"}}
+  ],
+  "anims": [
+    {"preset": "idle", "frames": 4, "grip_n": 118},
+    {"preset": "walk", "frames": 8, "stride": 22, "grip_n": 118}
+  ]
+}

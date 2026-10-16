@@ -1,0 +1,79 @@
+{
+  "renderer": "pixel-art-json/1",
+  "size": [
+    32,
+    32
+  ],
+  "mode": "RGBA",
+  "opaque_pixels": 541,
+  "transparent_pixels": 483,
+  "bbox": [
+    3,
+    6,
+    29,
+    29
+  ],
+  "colors": {
+    "#00000000": 483,
+    "#252337FF": 155,
+    "#4D3040FF": 66,
+    "#744039FF": 62,
+    "#A05B3DFF": 88,
+    "#A66D3DFF": 63,
+    "#CD8A50FF": 35,
+    "#E2B65EFF": 57,
+    "#FFE294FF": 15
+  },
+  "layers": [
+    {
+      "name": "silhouette",
+      "visible": true,
+      "bbox": [
+        3,
+        6,
+        29,
+        29
+      ]
+    },
+    {
+      "name": "wood",
+      "visible": true,
+      "bbox": [
+        4,
+        7,
+        28,
+        27
+      ]
+    },
+    {
+      "name": "metal-bands",
+      "visible": true,
+      "bbox": [
+        4,
+        7,
+        28,
+        27
+      ]
+    },
+    {
+      "name": "lock",
+      "visible": true,
+      "bbox": [
+        8,
+        14,
+        23,
+        26
+      ]
+    }
+  ],
+  "warnings": [],
+  "meta": {
+    "description": "A three-quarter wooden treasure chest with gold bands and a readable central lock",
+    "light": "upper left",
+    "source": "Original JSON operations; no reference images or image generation",
+    "pivot": [
+      16,
+      29
+    ]
+  }
+}

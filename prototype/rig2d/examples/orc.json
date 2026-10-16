@@ -1,0 +1,56 @@
+{
+  "name": "orc",
+  "size": [52, 48],
+  "rig": "humanoid",
+  "root_x": 0.37,
+  "outline": "#151017",
+  "proportions": {"spine": 10, "thigh": 5.5, "shin": 5.5, "upper_arm": 6.5, "forearm": 6.5, "head": 10},
+  "pose_offset": {"lean": 12, "head": -6, "hip_n": 4, "hip_f": -4, "knee_n": 6, "knee_f": 6},
+  "materials": {
+    "skin":    ["#2F4A24", "#4F7A34", "#7FAE4E"],
+    "hair":    ["#16131C", "#2A2433", "#433A4F"],
+    "legs":    ["#3A2620", "#5E3F2E", "#8A6045"],
+    "boots":   ["#221A18", "#3A2A24", "#5A4234"],
+    "cloth":   ["#4A1F24", "#7A3238", "#A54A4E"],
+    "iron":    ["#3C4048", "#666C78", "#9AA1AE", "#C9CED6"],
+    "bone":    ["#A89A7A", "#D8CCAA", "#F4ECD2"],
+    "wood":    ["#4A3226", "#6E4B34", "#946A48"]
+  },
+  "parts": {
+    "head":  {"at": [5.2, 1], "rx": 5.5, "ry": 5.1},
+    "torso": {"mat": "skin", "points": [[-1.5, -4.6], [3, -4.3], [7, -5.6], [10.5, -5], [11.6, 0], [10.5, 5.6], [7, 6.6], [3, 5.6], [-1.5, 4.9]]},
+    "upper_n": {"mat": "skin", "r": [2.9, 2.5]}, "fore_n": {"mat": "skin", "r": [2.7, 2.4]},
+    "upper_f": {"mat": "skin", "r": [2.9, 2.5]}, "fore_f": {"mat": "skin", "r": [2.7, 2.4]},
+    "hand_n": {"rx": 2.8, "ry": 2.8}, "hand_f": {"rx": 2.8, "ry": 2.8},
+    "thigh_n": {"r": [3.3, 2.7]}, "shin_n": {"r": [2.7, 2.3]},
+    "thigh_f": {"r": [3.3, 2.7]}, "shin_f": {"r": [2.7, 2.3]},
+    "foot_n": {"r": [2.2, 1.9]}, "foot_f": {"r": [2.2, 1.9]}
+  },
+  "extras": [
+    {"name": "ear", "bone": "head", "shape": "poly", "mat": "skin", "z": 39, "group": "ear",
+     "points": [[5, -3.2], [8, -7.8], [4, -5.6], [3.2, -3.2]]},
+    {"name": "jaw", "bone": "head", "shape": "ellipse", "at": [2.2, 3.4], "rx": 4.6, "ry": 3.2, "mat": "skin", "z": 41, "group": "head"},
+    {"name": "tusk", "bone": "head", "shape": "poly", "mat": "bone", "z": 42, "group": "tusk",
+     "points": [[1.8, 4.6], [6.2, 6], [5.6, 7.4], [1.8, 7.2]]},
+    {"name": "topknot", "bone": "head", "shape": "poly", "mat": "hair", "z": 42, "group": "hair",
+     "points": [[8.6, -3.4], [10.6, -1.6], [12.6, -4.6], [10.4, -7], [7.6, -5.4]]},
+    {"name": "belt", "bone": "spine", "shape": "poly", "mat": "legs", "z": 56, "group": "belt",
+     "points": [[1.2, -4.8], [2.9, -4.5], [2.9, 5.4], [1.2, 5.2]]},
+    {"name": "loincloth", "bone": "spine", "shape": "poly", "mat": "cloth", "z": 57, "group": "loincloth",
+     "points": [[1.4, 1.2], [1.4, 4.8], [-5, 4.2], [-6.4, 3.2], [-5.4, 2.2], [-6, 1.2]]},
+    {"name": "pauldron", "bone": "upper_n", "shape": "ellipse", "at": [0.8, 0], "rx": 4, "ry": 3.2, "mat": "iron", "z": 64, "group": "pauldron"},
+    {"name": "spike", "bone": "upper_n", "shape": "poly", "mat": "bone", "z": 63, "group": "pauldron",
+     "points": [[-1, -1.6], [-5, 0.4], [-1, 1.6]]},
+    {"name": "haft", "bone": "weapon_n", "shape": "capsule", "span": [-2, 12], "r": 0.9, "mat": "wood", "z": 61, "group": "axe"},
+    {"name": "axehead", "bone": "weapon_n", "shape": "poly", "mat": "iron", "z": 61, "group": "axe",
+     "points": [[8, 0.4], [12.6, 0.4], [14, 4.6], [11, 6.2], [8, 4]]}
+  ],
+  "stamps": [
+    {"bone": "head", "at": [6.4, 2.2], "rows": ["ooo", ".r."], "colors": {"o": "#151017", "r": "#F2C14E"}}
+  ],
+  "anims": [
+    {"preset": "idle", "frames": 4, "ms": 200},
+    {"preset": "walk", "frames": 8, "ms": 110, "stride": 20, "knee": 30},
+    {"preset": "attack", "ms": 1.2}
+  ]
+}

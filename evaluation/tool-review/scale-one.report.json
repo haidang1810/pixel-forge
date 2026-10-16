@@ -1,0 +1,36 @@
+{
+  "renderer": "pixel-art-json/1",
+  "size": [
+    4,
+    4
+  ],
+  "mode": "RGBA",
+  "opaque_pixels": 4,
+  "transparent_pixels": 12,
+  "bbox": [
+    0,
+    0,
+    2,
+    2
+  ],
+  "colors": {
+    "#00000000": 12,
+    "#FF0000FF": 4
+  },
+  "layers": [
+    {
+      "name": "base",
+      "visible": true,
+      "bbox": [
+        0,
+        0,
+        2,
+        2
+      ]
+    }
+  ],
+  "warnings": [
+    "Artwork touches a canvas edge; check intended padding or tile seams."
+  ],
+  "meta": {}
+}

@@ -1,0 +1,145 @@
+{
+  "renderer": "pixel-art-json/1",
+  "size": [
+    32,
+    32
+  ],
+  "mode": "RGBA",
+  "opaque_pixels": 480,
+  "transparent_pixels": 544,
+  "bbox": [
+    3,
+    2,
+    29,
+    31
+  ],
+  "colors": {
+    "#00000000": 544,
+    "#182D2CFF": 178,
+    "#2B4A3EFF": 18,
+    "#427157FF": 70,
+    "#6B9A64FF": 78,
+    "#773F42FF": 11,
+    "#9BC878FF": 65,
+    "#BD4B46FF": 20,
+    "#D3E29AFF": 17,
+    "#ED795CFF": 19,
+    "#F0AB47FF": 3,
+    "#FFE8A0FF": 1
+  },
+  "layers": [
+    {
+      "name": "far_leaf_ear",
+      "visible": true,
+      "bbox": [
+        22,
+        2,
+        29,
+        13
+      ]
+    },
+    {
+      "name": "near_leaf_ear",
+      "visible": true,
+      "bbox": [
+        3,
+        2,
+        15,
+        14
+      ]
+    },
+    {
+      "name": "body_and_root_feet",
+      "visible": true,
+      "bbox": [
+        10,
+        19,
+        26,
+        31
+      ]
+    },
+    {
+      "name": "head",
+      "visible": true,
+      "bbox": [
+        10,
+        7,
+        29,
+        22
+      ]
+    },
+    {
+      "name": "near_amber_eye",
+      "visible": true,
+      "bbox": [
+        16,
+        12,
+        20,
+        16
+      ]
+    },
+    {
+      "name": "far_amber_eye",
+      "visible": true,
+      "bbox": [
+        23,
+        12,
+        26,
+        16
+      ]
+    },
+    {
+      "name": "face_expression",
+      "visible": true,
+      "bbox": [
+        15,
+        14,
+        28,
+        20
+      ]
+    },
+    {
+      "name": "scarf_tail",
+      "visible": true,
+      "bbox": [
+        5,
+        21,
+        16,
+        28
+      ]
+    },
+    {
+      "name": "red_scarf",
+      "visible": true,
+      "bbox": [
+        12,
+        19,
+        26,
+        25
+      ]
+    }
+  ],
+  "warnings": [],
+  "meta": {
+    "description": "Original small forest spirit with leaf ears, amber eyes and a red scarf. Three-quarter view facing viewer right.",
+    "light": "upper left",
+    "pivot": [
+      18,
+      30
+    ],
+    "palette_roles": {
+      "o": "outline and pupils",
+      "d": "deep moss shade",
+      "s": "leaf/body shade",
+      "b": "body green",
+      "l": "leaf light",
+      "h": "sunlit green",
+      "a": "amber iris",
+      "p": "eye glint",
+      "r": "scarf red",
+      "R": "scarf light",
+      "c": "scarf shade"
+    },
+    "authoring": "Hand-authored geometric pixel clusters; no image references or generated imagery."
+  }
+}

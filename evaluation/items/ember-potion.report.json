@@ -1,0 +1,93 @@
+{
+  "renderer": "pixel-art-json/1",
+  "size": [
+    32,
+    32
+  ],
+  "mode": "RGBA",
+  "opaque_pixels": 404,
+  "transparent_pixels": 620,
+  "bbox": [
+    5,
+    3,
+    27,
+    29
+  ],
+  "colors": {
+    "#00000000": 620,
+    "#22233DFF": 110,
+    "#3A536BFF": 30,
+    "#682B4AFF": 30,
+    "#718E99FF": 60,
+    "#80503EFF": 13,
+    "#ACCAC5FF": 24,
+    "#B84750FF": 65,
+    "#C28B59FF": 12,
+    "#E2F1D5FF": 12,
+    "#ED775DFF": 32,
+    "#F0C884FF": 9,
+    "#FFBD7DFF": 7
+  },
+  "layers": [
+    {
+      "name": "bottle",
+      "visible": true,
+      "bbox": [
+        5,
+        7,
+        27,
+        29
+      ]
+    },
+    {
+      "name": "liquid",
+      "visible": true,
+      "bbox": [
+        7,
+        17,
+        25,
+        27
+      ]
+    },
+    {
+      "name": "glass-reflection",
+      "visible": true,
+      "bbox": [
+        8,
+        13,
+        23,
+        28
+      ]
+    },
+    {
+      "name": "stopper",
+      "visible": true,
+      "bbox": [
+        10,
+        3,
+        21,
+        10
+      ]
+    },
+    {
+      "name": "neck-cord",
+      "visible": true,
+      "bbox": [
+        11,
+        10,
+        25,
+        17
+      ]
+    }
+  ],
+  "warnings": [],
+  "meta": {
+    "description": "An ember-red potion in a squat glass bottle, cork and small hanging tag",
+    "light": "upper left",
+    "source": "Original JSON operations; no reference images or image generation",
+    "pivot": [
+      16,
+      29
+    ]
+  }
+}
