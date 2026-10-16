@@ -1,0 +1,25 @@
+{
+ "sheet": "bomb.png",
+ "frames": [
+  {
+   "rect": [
+    0,
+    0,
+    32,
+    32
+   ],
+   "ms": 120,
+   "source": "out/bomb-00.json"
+  },
+  {
+   "rect": [
+    32,
+    0,
+    32,
+    32
+   ],
+   "ms": 120,
+   "source": "out/bomb-01.json"
+  }
+ ]
+}

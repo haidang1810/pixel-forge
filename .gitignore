@@ -3,3 +3,7 @@ output/
 
 __pycache__/
 *.pyc
+
+# Item renders; rebuild with demo/items/build_items.py (the README images live in docs/images).
+demo/items/**/*.png
+demo/items/**/*.report.json

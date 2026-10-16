@@ -1,0 +1,55 @@
+{
+ "sheet": "chest-open.png",
+ "frames": [
+  {
+   "rect": [
+    0,
+    0,
+    32,
+    32
+   ],
+   "ms": 700,
+   "source": "out/chest-open-00.json"
+  },
+  {
+   "rect": [
+    32,
+    0,
+    32,
+    32
+   ],
+   "ms": 110,
+   "source": "out/chest-open-01.json"
+  },
+  {
+   "rect": [
+    64,
+    0,
+    32,
+    32
+   ],
+   "ms": 140,
+   "source": "out/chest-open-02.json"
+  },
+  {
+   "rect": [
+    96,
+    0,
+    32,
+    32
+   ],
+   "ms": 420,
+   "source": "out/chest-open-03.json"
+  },
+  {
+   "rect": [
+    128,
+    0,
+    32,
+    32
+   ],
+   "ms": 260,
+   "source": "out/chest-open-04.json"
+  }
+ ]
+}

@@ -1,0 +1,65 @@
+{
+ "sheet": "coin-spin.png",
+ "frames": [
+  {
+   "rect": [
+    0,
+    0,
+    32,
+    32
+   ],
+   "ms": 110,
+   "source": "out/coin-spin-00.json"
+  },
+  {
+   "rect": [
+    32,
+    0,
+    32,
+    32
+   ],
+   "ms": 110,
+   "source": "out/coin-spin-01.json"
+  },
+  {
+   "rect": [
+    64,
+    0,
+    32,
+    32
+   ],
+   "ms": 110,
+   "source": "out/coin-spin-02.json"
+  },
+  {
+   "rect": [
+    96,
+    0,
+    32,
+    32
+   ],
+   "ms": 110,
+   "source": "out/coin-spin-03.json"
+  },
+  {
+   "rect": [
+    128,
+    0,
+    32,
+    32
+   ],
+   "ms": 110,
+   "source": "out/coin-spin-04.json"
+  },
+  {
+   "rect": [
+    160,
+    0,
+    32,
+    32
+   ],
+   "ms": 110,
+   "source": "out/coin-spin-05.json"
+  }
+ ]
+}
