@@ -1,6 +1,6 @@
 ---
 name: pixel-forge
-description: Create or revise 2D pixel game assets by authoring editable JSON and rendering with code, without image-generation models. Use when the user requests procedural pixel art, exact pixel control, or text-to-pixel assets without image generation. Covers static icons, items and tiles, and side-view characters and mobs (humanoid, chibi, four-legged) with idle, walk, run, attack and floating animation exported as sprite sheets.
+description: Create or revise 2D pixel game assets by authoring editable JSON and rendering with code, without image-generation models. Use when the user requests procedural pixel art, exact pixel control, or text-to-pixel assets without image generation. Covers static icons, items and tiles, and side-view characters and mobs (humanoid, chibi, four-legged) with full mob animation sets (idle, walk, run, float, attack, hurt, die) exported as sprite sheets with pivots.
 ---
 
 # Pixel Forge

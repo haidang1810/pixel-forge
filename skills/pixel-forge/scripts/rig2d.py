@@ -420,7 +420,50 @@ def make_darken(spec, outline):
     return darken
 
 
+BAYER4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+
+
 def render_frame(spec, rig, pose, parts):
+    """Render one pose. Pose keys beyond joint angles:
+
+    plant: "all"  rest the lowest pixel of the whole body (not only the feet) on the ground row,
+                  for lying, crawling or fallen poses
+    flash: 1      hit flash: every non-outline pixel becomes spec["flash"] (default white)
+    dissolve: t   ordered-dither removal of a fraction t (0..1) of the pixels, for fading out
+    """
+    if pose.get("plant") == "all":
+        w, h = spec["size"]
+        pad = h
+        # Trial render on a taller canvas; dy -pad cancels the lower ground row, so the art keeps its
+        # place and gains `pad` empty rows below it, where anything sunk under the ground shows up.
+        probe = dict(spec, size=[w, h + pad])
+        probe.pop("shadow", None)
+        trial_pose = {k: v for k, v in pose.items() if k not in ("plant", "dissolve")}
+        trial_pose["dy"] = trial_pose.get("dy", 0) - pad
+        box = _render(probe, rig, trial_pose, parts).getbbox()
+        # Match the bottom edge of the character's own standing rest pose, so lying frames sit on
+        # the same ground line as standing ones.
+        standing = _render(dict(spec, shadow=None) if "shadow" in spec else spec, rig, rest_pose(spec, rig), parts).getbbox()
+        if box and standing:
+            pose = dict(pose, dy=pose.get("dy", 0) + standing[3] - box[3])
+    image = _render(spec, rig, pose, parts)
+    image.info["pivot"] = [math.floor(c) for c in place(spec, rig, pose)["spine"].start]
+    if pose.get("flash"):
+        flash = hex_rgba(spec.get("flash", "#FFFFFF"))
+        outline = hex_rgba(spec["outline"])
+        for p, c in zip(((x, y) for y in range(image.height) for x in range(image.width)), pixels_of(image)):
+            if c[3] and c != outline:
+                image.putpixel(p, flash)
+    amount = pose.get("dissolve", 0)
+    if amount > 0:
+        for y in range(image.height):
+            for x in range(image.width):
+                if BAYER4[y % 4][x % 4] < amount * 16:
+                    image.putpixel((x, y), (0, 0, 0, 0))
+    return image
+
+
+def _render(spec, rig, pose, parts):
     w, h = spec["size"]
     bones = place(spec, rig, pose)
     mats = {k: [hex_rgba(c) for c in v] for k, v in spec.get("materials", {}).items()}
@@ -570,7 +613,7 @@ def write_rest_sheet(spec, rig, out, scale):
 
 SPEC_KEYS = {"name", "size", "rig", "root_x", "outline", "proportions", "pose_offset", "materials", "parts",
              "extras", "stamps", "anims", "palette", "cutout", "ramps", "cleanup", "selout", "selout_steps",
-             "far_steps", "far_shade", "touchups", "shadow", "draw"}
+             "far_steps", "far_shade", "touchups", "shadow", "draw", "flash"}
 HEX = "0123456789abcdefABCDEF"
 
 
@@ -659,6 +702,8 @@ def validate_spec(spec):
                         if ch != "." and ch not in palette:
                             raise ValueError(f"{where}.rows[{y}][{x}]: unknown palette symbol {ch!r}")
             layers[layer.get("name")] = layer
+    if "flash" in spec and not is_hex(spec["flash"]):
+        raise ValueError("flash: expected #RRGGBB, the hit-flash color")
     shadow = spec.get("shadow")
     if shadow is not None and not (isinstance(shadow, dict) and is_hex(shadow.get("color"))
                                    and set(shadow) <= {"color", "rx", "shrink"}):
@@ -729,7 +774,7 @@ def main(argv=None):
         offset = {**spec.get("pose_offset", {}), **anim.get("pose_offset", {})}
         for i, (pose, duration) in enumerate(frames):
             # Character posture (hunch, wide stance...) is added on top of every preset frame.
-            pose = {k: pose.get(k, 0) + offset.get(k, 0) for k in set(pose) | set(offset)}
+            pose = {**pose, **{k: pose.get(k, 0) + v for k, v in offset.items()}}
             image = apply_touchups(render_frame(spec, rig, pose, parts), spec, name, i)
             doc = to_v1_document(image, f"{spec.get('name', 'character')} {name} {i}")
             check, _ = v1.render_document(doc)
@@ -740,16 +785,17 @@ def main(argv=None):
             box = image.getbbox()
             if box and (box[0] == 0 or box[1] == 0 or box[2] == w or box[3] == h):
                 print(f"warning: {name} frame {i} touches the canvas edge {box}")
-            images.append((image, duration))
+            images.append((image, duration, image.info["pivot"]))
         sheet = Image.new("RGBA", (w * len(images), h), (0, 0, 0, 0))
-        for i, (image, _) in enumerate(images):
+        for i, (image, *_) in enumerate(images):
             sheet.paste(image, (i * w, 0))
         sheet.save(out / f"{name}.png")
-        previews = [enlarge(image, args.scale).convert("P", palette=Image.ADAPTIVE) for image, _ in images]
+        previews = [enlarge(image, args.scale).convert("P", palette=Image.ADAPTIVE) for image, *_ in images]
         previews[0].save(out / f"{name}.preview.gif", save_all=True, append_images=previews[1:],
-                         duration=[d for _, d in images], loop=0, disposal=2)
+                         duration=[d for _, d, _ in images], loop=0, disposal=2)
+        # pivot: the hip (skeleton root) in frame pixels, so an engine can align frames and animations.
         manifest["animations"][name] = {"sheet": f"{name}.png", "frames": [
-            {"rect": [i * w, 0, w, h], "ms": d} for i, (_, d) in enumerate(images)]}
+            {"rect": [i * w, 0, w, h], "ms": d, "pivot": pivot} for i, (_, d, pivot) in enumerate(images)]}
         rows_for_contact.append(images)
     (out / "animation.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
@@ -757,7 +803,7 @@ def main(argv=None):
     s = args.scale
     contact = checker((cols * w * s, len(rows_for_contact) * h * s), s * 4)
     for r, images in enumerate(rows_for_contact):
-        for c, (image, _) in enumerate(images):
+        for c, (image, *_) in enumerate(images):
             contact.alpha_composite(image.resize((w * s, h * s), Image.NEAREST), (c * w * s, r * h * s))
     contact.save(out / "contact.png")
     print(f"wrote {out}")

@@ -22,18 +22,7 @@
   "tail3": 26,
   "dx": 2
  },
- "anims": [
-  {
-   "preset": "idle"
-  },
-  {
-   "preset": "walk",
-   "stride": 16
-  },
-  {
-   "preset": "run"
-  }
- ],
+ "anims": [{"preset": "idle"}, {"preset": "walk", "stride": 16}, {"preset": "run"}, {"preset": "attack"}, {"preset": "hurt", "pose_offset": {"dx": 5}}, {"preset": "die", "pose_offset": {"dx": 4}}],
  "palette": {
   "1": "#1C1A2A",
   "2": "#2C2A3E",

@@ -48,9 +48,5 @@
   "stamps": [
     {"bone": "head", "at": [6.4, 2.2], "rows": ["ooo", ".r."], "colors": {"o": "#151017", "r": "#F2C14E"}}
   ],
-  "anims": [
-    {"preset": "idle", "frames": 4, "ms": 200},
-    {"preset": "walk", "frames": 8, "ms": 110, "stride": 20, "knee": 30},
-    {"preset": "attack", "ms": 1.2}
-  ]
+  "anims": [{"preset": "idle", "frames": 4, "ms": 200}, {"preset": "walk", "frames": 8, "ms": 110, "stride": 20, "knee": 30}, {"preset": "attack", "ms": 1.2}, {"preset": "hurt"}, {"preset": "die", "pose_offset": {"dx": 10}}]
 }

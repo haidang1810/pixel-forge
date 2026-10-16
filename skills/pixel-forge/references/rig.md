@@ -18,7 +18,7 @@ A render writes the following into `OUT_DIR`:
 - `<anim>.preview.gif`: an enlarged preview.
 - `<anim>/frame-XX.png`: each frame as a separate image.
 - `<anim>/frame-XX.json`: each frame in the v1 format, so `pixel_art.py patch` can edit it.
-- `animation.json`: frame rects and milliseconds.
+- `animation.json`: per frame, the rect in the sheet, the milliseconds and the `pivot`, which is the hip (skeleton root) in frame pixels. Align frames and animations in the engine by the pivot, because an animation may be shifted inside its frame to fit (for example a fall).
 - `contact.png`: an overview of all frames.
 
 Every frame is checked to reproduce exactly through `pixel_art.py`. A spec error exits with code 2 and writes nothing. `--out` must not be the folder that holds the spec. Outputs there are replaced on rerun. A warning reports art that touches the canvas edge.
@@ -66,6 +66,8 @@ All characters face right, in side view. Angles are degrees.
   - `idle` takes `frames`, `ms` and `breath`;
   - `walk` takes `frames`, `ms`, `stride`, `knee` and `arm`;
   - `attack` (a horizontal slash) takes `ms`, which scales all timings;
+  - `hurt` (flash, knock-back, recover) takes `ms`. `"style": "float"` keeps a floating creature's hover pose;
+  - `die` takes `ms`, `style` and `fade`. `"style": "fall"` (the default) staggers, drops to the knees and falls on the back. `"style": "fade"` is for floating creatures: a flash, then a dissolve while drifting up. `fade: N` adds N dissolve frames after a fall;
   - `float` hovers in place for ghosts and spirits, taking `frames`, `ms`, `bob`, `sway` and `wave`. The legs become trailing wisps whose wave runs from hip to tip: reshape them with `parts` and hide the feet. Lift the body with `pose_offset` `dy` (negative is up). Fixed joints passed in the entry, such as `"lean": 18` for a forward-flying variant, override the per-frame motion.
 
 ### Quadruped
@@ -81,7 +83,21 @@ All characters face right, in side view. Angles are degrees.
 - **Presets:**
   - `idle` takes `frames`, `ms` and `wag`;
   - `walk` is a four-beat walk taking `frames`, `ms`, `stride` and `fold`;
-  - `run` is a rotary gallop with a flight phase, taking `frames`, `ms`, `stride`, `fold` and `flex`.
+  - `run` is a rotary gallop with a flight phase, taking `frames`, `ms`, `stride`, `fold` and `flex`;
+  - `attack` is a pounce and bite (crouch, launch, snap, step back), taking `ms`;
+  - `hurt` (flash, rear back, tail tucked) takes `ms`;
+  - `die` (flash, buckle, drop, lie on the side with the legs out) takes `ms` and `fade`.
+
+A full mob set is idle, a move (walk, run or float), attack, hurt and die. Death holds its last frame for 600 ms; play it once in the game. Preview GIFs loop every animation.
+
+## Effects and special pose keys
+
+Presets set these per frame. They can also be passed as fixed values in an anim entry.
+- `flash: 1` turns every non-outline pixel into the `flash` color (spec field, default `#FFFFFF`), for hit frames.
+- `dissolve: t` removes the fraction t (0–1) of pixels in an ordered 4×4 dither pattern, for fading out.
+- `plant: "all"` rests the lowest pixel of the whole body, not just the feet, on the character's standing ground line, for lying and fallen poses.
+
+Moves with `dx` (knock-back, lunges, falls) need horizontal room in the canvas. When a warning reports an edge, shift that animation with its own `pose_offset` `dx`. The pivot records the shift.
 
 ## Vector parts
 

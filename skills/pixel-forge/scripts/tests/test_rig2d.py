@@ -209,6 +209,42 @@ class Rig2dTests(unittest.TestCase):
             self.assertIn(message, result.stderr)
             self.assertFalse(out.exists(), message)
 
+    def test_hurt_flashes_and_die_lies_on_the_standing_ground_line(self):
+        spec = humanoid()
+        spec["anims"] = [{"preset": "idle", "frames": 2}, {"preset": "hurt"}, {"preset": "die"}]
+        result, out = self.run_cli(spec)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        flash = opened(out / "hurt" / "frame-00.png")
+        colors = {c for c in self.rig.pixels_of(flash) if c[3]}
+        self.assertEqual(colors, {(255, 255, 255, 255), (0x10, 0x10, 0x10, 255)})
+        standing = opened(out / "idle" / "frame-00.png").getbbox()
+        manifest = json.loads((out / "animation.json").read_text(encoding="utf-8"))
+        die = manifest["animations"]["die"]["frames"]
+        lying = opened(out / "die" / f"frame-{len(die) - 1:02d}.png").getbbox()
+        self.assertEqual(lying[3], standing[3])
+        self.assertGreater(lying[2] - lying[0], lying[3] - lying[1], "the last die frame should lie down")
+        self.assertTrue(all(len(f["pivot"]) == 2 for f in die))
+
+    def test_fade_death_dissolves_to_nothing(self):
+        spec = humanoid()
+        spec["pose_offset"] = {"dy": -4}
+        spec["anims"] = [{"preset": "die", "style": "fade"}]
+        result, out = self.run_cli(spec)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        frames = json.loads((out / "animation.json").read_text(encoding="utf-8"))["animations"]["die"]["frames"]
+        last = opened(out / "die" / f"frame-{len(frames) - 1:02d}.png")
+        self.assertIsNone(last.getbbox())
+        middle = opened(out / "die" / "frame-03.png")
+        self.assertIsNotNone(middle.getbbox())
+
+    def test_quadruped_has_a_full_mob_set(self):
+        spec = quad_cutout()
+        spec["anims"] = [{"preset": p} for p in ("idle", "walk", "run", "attack", "hurt", "die")]
+        result, out = self.run_cli(spec)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((out / "animation.json").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(manifest["animations"]), ["attack", "die", "hurt", "idle", "run", "walk"])
+
     def test_scale2x_keeps_flat_regions(self):
         grid = [[1, 1], [1, 1]]
         self.assertEqual(self.rig.scale2x(grid), [[1] * 4 for _ in range(4)])
