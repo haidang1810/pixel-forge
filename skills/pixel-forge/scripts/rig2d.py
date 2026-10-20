@@ -7,6 +7,7 @@ and rotated RotSprite-style. Every exported frame is also written in the pixel-a
 format and checked to reproduce exactly through pixel_art.py. See references/rig.md.
 """
 import argparse
+import copy
 import importlib.util
 import json
 import math
@@ -58,19 +59,29 @@ def add(p, d, length):
 
 
 class Bone:
-    def __init__(self, start, direction, length):
-        self.start, self.dir, self.length = start, direction, length
+    def __init__(self, start, direction, length, scale=1.0):
+        """scale is squash and stretch: parts on the bone stretch by `scale` along it and narrow by
+        1/scale across it (scale < 1 squashes). Parts are authored at scale 1."""
+        self.start, self.dir, self.length, self.scale = start, direction, length, scale
         self.end = add(start, direction, length)
 
     def local(self, u, v):
         """u along the bone, v perpendicular (+v is forward for an upright bone)."""
         nx, ny = -self.dir[1], self.dir[0]
+        u, v = u * self.scale, v / self.scale
         return (self.start[0] + self.dir[0] * u + nx * v, self.start[1] + self.dir[1] * u + ny * v)
 
 
 def solve_skeleton(rig, pose, root):
-    if rig.get("family") == "quadruped":
+    family = rig.get("family")
+    if family == "quadruped":
         return solve_quadruped(rig, pose, root)
+    if family == "slime":
+        return solve_slime(rig, pose, root)
+    if family == "serpent":
+        return solve_serpent(rig, pose, root)
+    if family == "bird":
+        return solve_bird(rig, pose, root)
     L, P = rig["bones"], pose
     bones = {}
     spine_dir = up(P.get("lean", 0))
@@ -89,6 +100,66 @@ def solve_skeleton(rig, pose, root):
                       "upper_" + side: upper, "fore_" + side: fore})
         bones["hand_" + side] = Bone(fore.end, fore.dir, 0.01)
         bones["weapon_" + side] = Bone(fore.end, down(fore_angle + P.get("grip_" + side, 120)), 1)
+    return bones
+
+
+def solve_slime(rig, pose, root):
+    """A blob on the ground. root is the bottom centre; "body" points up and carries the squash.
+
+    stretch > 1 is tall and thin, < 1 squashed flat and wide; lean > 0 tips the top forward.
+    """
+    L, P = rig["bones"], pose
+    stretch = max(0.2, P.get("stretch", 1.0))
+    body = Bone(root, up(P.get("lean", 0)), L["height"] * stretch, scale=stretch)
+    return {"body": body, "foot_c": Bone(root, (0.0, 1.0), 0.01), "top": Bone(body.end, body.dir, 0.01)}
+
+
+def solve_serpent(rig, pose, root):
+    """A snake seen from the side. root is where the raised neck leaves the ground.
+
+    neck: from straight up (forward > 0); head > 0 points the nose down; jaw opens the lower jaw.
+    seg1..segN run backward from the root; seg_i bends each segment relative to the previous one
+    (> 0 turns the body downward/back, < 0 lifts it), so a travelling wave is a sine over i.
+    """
+    L, P = rig["bones"], pose
+    bones = {}
+    bones["neck"] = Bone(root, up(P.get("neck", 0)), L["neck"])
+    head_angle = 90 - P.get("head", 0)
+    bones["head"] = Bone(bones["neck"].end, down(head_angle), L["head"])
+    bones["jaw"] = Bone(bones["head"].local(0.5, 1.2), down(head_angle - P.get("jaw", 0)), L["head"] * 0.85)
+    angle, start = -90.0, root
+    for i in range(1, int(L["segments"]) + 1):
+        angle += P.get(f"seg{i}", 0)
+        seg = Bone(start, down(angle), L["seg"])
+        bones[f"seg{i}"], start = seg, seg.end
+    return bones
+
+
+def solve_bird(rig, pose, root):
+    """A bird seen from the side. root is the hip.
+
+    body: body tilt (0 level, > 0 chest up); neck from straight up; head > 0 nose down; tail > 0 up.
+    wing_n/wing_f: limb angle of the wing (0 down, -95 folded back along the body, 160 raised);
+    wingtip_*: bend of the outer wing. hip/knee/ankle work like the humanoid legs.
+    """
+    L, P = rig["bones"], pose
+    tilt = math.radians(P.get("body", 0))
+    body = Bone(root, (math.cos(tilt), -math.sin(tilt)), L["body"])
+    bones = {"spine": body, "body": body}
+    bones["neck"] = Bone(body.local(L["body"] - 1, -1.5), up(P.get("neck", 0)), L["neck"])
+    bones["head"] = Bone(bones["neck"].end, down(90 - P.get("head", 0)), L["head"])
+    bones["tail"] = Bone(body.local(0.5, -0.5), down(-90 - P.get("tail", 0)), L["tail"])
+    shoulder = body.local(L["body"] * 0.7, -1.8)
+    for side in ("n", "f"):
+        wing = P.get("wing_" + side, -95)
+        upper = Bone(shoulder, down(wing), L["wing_upper"])
+        tip = Bone(upper.end, down(wing + P.get("wingtip_" + side, 0)), L["wing_fore"])
+        thigh = Bone(root, down(P.get("hip_" + side, 0)), L["thigh"])
+        shin_angle = P.get("hip_" + side, 0) - P.get("knee_" + side, 0)
+        shin = Bone(thigh.end, down(shin_angle), L["shin"])
+        foot = Bone(shin.end, down(shin_angle + 90 + P.get("ankle_" + side, 0)), L["foot"])
+        bones.update({"wing_" + side: upper, "wingtip_" + side: tip, "thigh_" + side: thigh,
+                      "shin_" + side: shin, "foot_" + side: foot})
     return bones
 
 
@@ -192,13 +263,15 @@ def poly_test(points):
 def part_shape(part, bones):
     bone = bones[part["bone"]]
     shape = part.get("shape", "capsule")
+    rest_length = bone.length / bone.scale  # part coordinates are authored unscaled
     if shape == "capsule":
-        u0, u1 = part.get("span", [0, bone.length])
+        u0, u1 = part.get("span", [0, rest_length])
         r0, r1 = part["r"] if isinstance(part["r"], list) else (part["r"], part["r"])
-        return capsule_test(bone.local(u0, part.get("v", 0)), bone.local(u1, part.get("v", 0)), r0, r1)
+        return capsule_test(bone.local(u0, part.get("v", 0)), bone.local(u1, part.get("v", 0)),
+                            r0 / bone.scale, r1 / bone.scale)
     if shape == "ellipse":
-        u, v = part.get("at", [bone.length / 2, 0])
-        return ellipse_test(bone.local(u, v), part["rx"], part["ry"], bone.dir)
+        u, v = part.get("at", [rest_length / 2, 0])
+        return ellipse_test(bone.local(u, v), part["rx"] / bone.scale, part["ry"] * bone.scale, bone.dir)
     if shape == "poly":
         return poly_test([bone.local(u, v) for u, v in part["points"]])
     raise ValueError(f"unknown shape {shape}")
@@ -314,22 +387,45 @@ def cleanup(color):
 # ---------- frame rendering ----------
 
 LIGHT = (0.55, -0.83)  # from the upper-front for a right-facing character
+LIGHTS = {"upper-front": LIGHT, "upper-back": (-0.55, -0.83), "top": (0.0, -1.0),
+          "front": (0.83, -0.55), "back": (-0.83, -0.55)}
 
 
-def shade(mask, ramp, normal):
-    """Volume cel shading: each pixel's surface direction against one global light."""
+def light_vector(style):
+    """Named light direction, or degrees: 0 = from the facing side, 90 = from straight above."""
+    light = (style or {}).get("light", "upper-front")
+    if isinstance(light, (int, float)):
+        a = math.radians(light)
+        return (math.cos(a), -math.sin(a))
+    return LIGHTS[light]
+
+
+def shade(mask, ramp, normal, style=None):
+    """Volume cel shading: each pixel's surface direction against one global light.
+
+    style: shades (2, 3 or 4 tones), dither (checker the boundary between two tones), light."""
+    style = style or {}
+    lx, ly = light_vector(style)
+    shades = style.get("shades", 4)
+
+    def tone(d):
+        if shades >= 4 and len(ramp) > 3 and d > 0.7:
+            return 3
+        if shades >= 3 and d > 0.3:
+            return 2
+        if shades == 2:
+            return 0 if d < -0.1 else 1
+        return 0 if d < -0.35 else 1
     out = {}
     for x, y in mask:
         nx, ny = normal(x + 0.5, y + 0.5)
-        d = nx * LIGHT[0] + ny * LIGHT[1]
-        if len(ramp) > 3 and d > 0.7:
-            out[(x, y)] = ramp[3]
-        elif d > 0.3:
-            out[(x, y)] = ramp[2]
-        elif d < -0.35:
-            out[(x, y)] = ramp[0]
-        else:
-            out[(x, y)] = ramp[1]
+        d = nx * lx + ny * ly
+        level = tone(d)
+        if style.get("dither"):
+            low, high = tone(d - 0.12), tone(d + 0.12)
+            if low != high:
+                level = high if (x + y) % 2 == 0 else low
+        out[(x, y)] = ramp[level]
     return out
 
 
@@ -365,8 +461,14 @@ def build_parts(spec, rig):
             continue
         parts.append(dict(part, name=name))
     for i, extra in enumerate(spec.get("extras", [])):
+        extra = presets.scale_part(copy.deepcopy(extra), rig)  # extras follow the build too
         parts.append(dict(extra, name=extra.get("name", f"extra{i}"), group=extra.get("group", f"extra{i}")))
     return sorted(parts, key=lambda p: p["z"])
+
+
+def root_bone(bones):
+    """Every solver creates the bone that starts at the skeleton root first."""
+    return next(iter(bones.values()))
 
 
 def place(spec, rig, pose):
@@ -374,7 +476,9 @@ def place(spec, rig, pose):
     w, h = spec["size"]
     ground = h - 3
     probe = solve_skeleton(rig, pose, (0.0, 0.0))
-    lowest = max(b.local(u, 0)[1] for k, b in probe.items() if k.startswith("foot_") for u in (-1, b.length + 0.4))
+    prefixes = tuple(rig.get("ground_bones", ("foot_", "paw_")))
+    feet = [b for k, b in probe.items() if k.startswith(prefixes)] or list(probe.values())
+    lowest = max(b.local(u, 0)[1] for b in feet for u in (-1, b.length / b.scale + 0.4))
     root = (round(w * spec.get("root_x", 0.4) + pose.get("dx", 0)) + 0.5, round(ground + 0.5 - lowest - rig["sole"]) + 0.5 + pose.get("dy", 0))
     return solve_skeleton(rig, pose, root)
 
@@ -399,7 +503,7 @@ def apply_touchups(image, spec, anim, index):
     return image
 
 
-def make_darken(spec, outline):
+def make_darken(spec, outline, materials=False):
     """Darken a color by stepping down its palette ramp, so shading never leaves the palette.
 
     spec["ramps"] lists palette symbols dark -> light (e.g. "k12345678"). Colors outside every
@@ -407,8 +511,10 @@ def make_darken(spec, outline):
     """
     palette = {k: hex_rgba(v) for k, v in spec.get("palette", {}).items()}
     steps_of = {}
-    for ramp in spec.get("ramps", []):
-        colors = [palette[ch] for ch in ramp]
+    ramps = [[palette[ch] for ch in ramp] for ramp in spec.get("ramps", [])]
+    if materials:  # vector characters: their material ramps are already dark -> light
+        ramps += [[hex_rgba(c) for c in ramp] for ramp in spec.get("materials", {}).values()]
+    for colors in ramps:
         for i, c in enumerate(colors):
             steps_of.setdefault(c, (colors, i))
 
@@ -431,23 +537,17 @@ def render_frame(spec, rig, pose, parts):
     flash: 1      hit flash: every non-outline pixel becomes spec["flash"] (default white)
     dissolve: t   ordered-dither removal of a fraction t (0..1) of the pixels, for fading out
     """
-    if pose.get("plant") == "all":
-        w, h = spec["size"]
-        pad = h
-        # Trial render on a taller canvas; dy -pad cancels the lower ground row, so the art keeps its
-        # place and gains `pad` empty rows below it, where anything sunk under the ground shows up.
-        probe = dict(spec, size=[w, h + pad])
-        probe.pop("shadow", None)
-        trial_pose = {k: v for k, v in pose.items() if k not in ("plant", "dissolve")}
-        trial_pose["dy"] = trial_pose.get("dy", 0) - pad
-        box = _render(probe, rig, trial_pose, parts).getbbox()
-        # Match the bottom edge of the character's own standing rest pose, so lying frames sit on
-        # the same ground line as standing ones.
-        standing = _render(dict(spec, shadow=None) if "shadow" in spec else spec, rig, rest_pose(spec, rig), parts).getbbox()
-        if box and standing:
-            pose = dict(pose, dy=pose.get("dy", 0) + standing[3] - box[3])
+    # Ground lock: measure where the feet (or, with plant "all", the whole body) actually end up and
+    # shift by whole pixels so that bottom row lands exactly on the ground row h-3, with the outline
+    # on h-2. The pose's own dy (jumps, hovering) is then applied on top.
+    prefixes = tuple(rig.get("ground_bones", ("foot_", "paw_")))
+    support = parts if pose.get("plant") == "all" else [p for p in parts if p["bone"].startswith(prefixes)]
+    if support:
+        bottom = _bottom(spec, rig, pose, support)
+        if bottom is not None:
+            pose = dict(pose, dy=pose.get("dy", 0) + (spec["size"][1] - 1) - bottom)
     image = _render(spec, rig, pose, parts)
-    image.info["pivot"] = [math.floor(c) for c in place(spec, rig, pose)["spine"].start]
+    image.info["pivot"] = [math.floor(c) for c in root_bone(place(spec, rig, pose)).start]
     if pose.get("flash"):
         flash = hex_rgba(spec.get("flash", "#FFFFFF"))
         outline = hex_rgba(spec["outline"])
@@ -461,6 +561,22 @@ def render_frame(spec, rig, pose, parts):
                 if BAYER4[y % 4][x % 4] < amount * 16:
                     image.putpixel((x, y), (0, 0, 0, 0))
     return image
+
+
+def _bottom(spec, rig, pose, parts):
+    """Exclusive bottom row of `parts` drawn in `pose` at its grounded position (the pose's dy ignored).
+
+    The trial canvas is `pad` rows taller and dy -pad cancels its lower ground row, so the art keeps
+    its place and anything below the real canvas edge is still measured.
+    """
+    w, h = spec["size"]
+    pad = h
+    probe = {k: v for k, v in spec.items() if k != "shadow"}
+    probe["size"] = [w, h + pad]
+    trial = {k: v for k, v in pose.items() if k not in ("plant", "dissolve", "flash")}
+    trial["dy"] = -pad
+    box = _render(probe, rig, trial, parts).getbbox()
+    return box[3] if box else None
 
 
 def _render(spec, rig, pose, parts):
@@ -482,7 +598,7 @@ def _render(spec, rig, pose, parts):
             ramp = mats[part["mat"]]
             if part.get("far"):
                 ramp = [ramp[0], ramp[0], ramp[1]]
-            painted = shade(mask, ramp, normal)
+            painted = shade(mask, ramp, normal, spec.get("style"))
         for p, c in painted.items():
             color[p], owner[p] = c, (index, part.get("group", part["name"]))
     # Separate overlapping groups: a back pixel touching a front group gets darker.
@@ -514,17 +630,27 @@ def _render(spec, rig, pose, parts):
     edge = [(x, y) for x in range(w) for y in range(h)
             if (x, y) not in color and any(n in color for n in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))]
     selout = {}
-    for x, y in edge:
-        # Selective outline: edges facing the light take a dark tint of the fill they border.
-        lit = color.get((x, y + 1)) or color.get((x - 1, y))
-        selout[(x, y)] = darken(lit, spec.get("selout_steps", 3), spec.get("selout", 1.0)) if lit else outline
+    kind = (spec.get("style") or {}).get("outline")
+    if kind == "selout":
+        # Every edge takes a darker tone of the fill it borders.
+        shade_down = make_darken(spec, outline, materials=True)
+        for x, y in edge:
+            fill = next(c for c in (color.get(n) for n in ((x, y + 1), (x - 1, y), (x + 1, y), (x, y - 1))) if c)
+            selout[(x, y)] = shade_down(fill, spec.get("selout_steps", 3), 0.6)
+    elif kind == "black":
+        selout = {p: outline for p in edge}
+    elif kind is None:
+        for x, y in edge:
+            # Edges facing the light take a dark tint of the fill they border.
+            lit = color.get((x, y + 1)) or color.get((x - 1, y))
+            selout[(x, y)] = darken(lit, spec.get("selout_steps", 3), spec.get("selout", 1.0)) if lit else outline
     color.update(selout)
     shadow = spec.get("shadow")
     if shadow:
         # Ground shadow for floating characters: shrinks as the body rises; never covers the art.
         lift = max(0.0, -pose.get("dy", 0))
         rx = max(1.0, shadow.get("rx", 6) * (1 - shadow.get("shrink", 0.06) * lift))
-        cx, cy = bones["spine"].start[0], h - 2.5
+        cx, cy = root_bone(bones).start[0], h - 2.5
         fill = hex_rgba(shadow["color"])
         for y in (h - 3, h - 2):
             for x in range(w):
@@ -613,7 +739,7 @@ def write_rest_sheet(spec, rig, out, scale):
 
 SPEC_KEYS = {"name", "size", "rig", "root_x", "outline", "proportions", "pose_offset", "materials", "parts",
              "extras", "stamps", "anims", "palette", "cutout", "ramps", "cleanup", "selout", "selout_steps",
-             "far_steps", "far_shade", "touchups", "shadow", "draw", "flash"}
+             "far_steps", "far_shade", "touchups", "shadow", "draw", "flash", "motion", "build", "style"}
 HEX = "0123456789abcdefABCDEF"
 
 
@@ -649,7 +775,21 @@ def validate_spec(spec):
         if name in names:
             raise ValueError(f"anims[{i}]: duplicate animation name {name!r}; set a distinct 'name'")
         names.add(name)
-    rig = presets.rig(rig_name, spec.get("proportions", {}))
+    for where, motion in [("motion", spec.get("motion"))] + [(f"anims[{i}].motion", a.get("motion")) for i, a in enumerate(anims)]:
+        if motion is None:
+            continue
+        if not isinstance(motion, dict) or set(motion) - {"weight", "energy", "exaggeration", "seed"}:
+            raise ValueError(f"{where}: expected an object with weight, energy, exaggeration and/or seed")
+        for key, low, high in (("weight", 0, 1), ("energy", 0, 1), ("exaggeration", 0, 2)):
+            value = motion.get(key)
+            if value is not None and not (isinstance(value, (int, float)) and low <= value <= high):
+                raise ValueError(f"{where}.{key}: expected a number {low}..{high}")
+        if "seed" in motion and type(motion["seed"]) is not int:
+            raise ValueError(f"{where}.seed: expected an integer")
+    build = spec.get("build")
+    if build is not None and build not in presets.BUILDS.get(family, {}):
+        raise ValueError(f"build: {build!r} is not a {family} build; choose from {sorted(presets.BUILDS.get(family, {}))}")
+    rig = presets.rig(rig_name, spec.get("proportions", {}), build)
     bones = set(solve_skeleton(rig, rest_pose(spec, rig), (0.0, 0.0)))
     materials = spec.get("materials", {})
     for k, ramp in materials.items():
@@ -702,6 +842,19 @@ def validate_spec(spec):
                         if ch != "." and ch not in palette:
                             raise ValueError(f"{where}.rows[{y}][{x}]: unknown palette symbol {ch!r}")
             layers[layer.get("name")] = layer
+    style = spec.get("style")
+    if style is not None:
+        if not isinstance(style, dict) or set(style) - {"outline", "shades", "dither", "light"}:
+            raise ValueError("style: expected an object with outline, shades, dither and/or light")
+        if style.get("outline", "black") not in ("black", "selout", "none"):
+            raise ValueError("style.outline: choose black, selout or none")
+        if style.get("shades", 4) not in (2, 3, 4):
+            raise ValueError("style.shades: choose 2, 3 or 4")
+        if not isinstance(style.get("dither", False), bool):
+            raise ValueError("style.dither: expected true or false")
+        light = style.get("light", "upper-front")
+        if not (isinstance(light, (int, float)) and not isinstance(light, bool)) and light not in LIGHTS:
+            raise ValueError(f"style.light: a number of degrees or one of {sorted(LIGHTS)}")
     if "flash" in spec and not is_hex(spec["flash"]):
         raise ValueError("flash: expected #RRGGBB, the hit-flash color")
     shadow = spec.get("shadow")
@@ -742,7 +895,7 @@ def main(argv=None):
     except (OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
-    rig = presets.rig(spec.get("rig", "humanoid"), spec.get("proportions", {}))
+    rig = presets.rig(spec.get("rig", "humanoid"), spec.get("proportions", {}), spec.get("build"))
     out = Path(args.out)
     if Path(args.spec).resolve().parent == out.resolve() or out.resolve() in Path(args.spec).resolve().parents:
         print("error: --out must not contain the spec file; outputs there are replaced on rerun", file=sys.stderr)
@@ -767,8 +920,10 @@ def main(argv=None):
     rows_for_contact = []
     for anim in spec["anims"]:
         name = anim.get("name", anim["preset"])
-        params = {k: v for k, v in anim.items() if k not in ("preset", "name", "pose_offset")}
-        frames = presets.anim(rig.get("family", "humanoid"), anim["preset"], **params)
+        params = {k: v for k, v in anim.items() if k not in ("preset", "name", "pose_offset", "motion")}
+        family = rig.get("family", "humanoid")
+        frames = presets.personalize(presets.anim(family, anim["preset"], **params), family,
+                                     {**spec.get("motion", {}), **anim.get("motion", {})})
         images = []
         (out / name).mkdir(exist_ok=True)
         offset = {**spec.get("pose_offset", {}), **anim.get("pose_offset", {})}

@@ -1,0 +1,14 @@
+{
+  "name": "slime", "size": [44, 32], "rig": "slime", "root_x": 0.5, "outline": "#0E1F18",
+  "materials": {
+    "body":  ["#1E4D3A", "#2F7A55", "#4FB57A", "#9BE8B0"],
+    "shine": ["#9BE8B0", "#CFFFE0", "#FFFFFF"]
+  },
+  "extras": [
+    {"name": "shine", "bone": "body", "shape": "ellipse", "at": [8.6, -4.2], "rx": 1.1, "ry": 1.8, "mat": "shine", "z": 31, "group": "shine"}
+  ],
+  "stamps": [
+    {"bone": "body", "at": [7.2, 1.6], "rows": ["o.o", "o.o", "...", ".m."], "colors": {"o": "#0E1F18", "m": "#163A2A"}}
+  ],
+  "anims": [{"preset": "idle"}, {"preset": "hop"}, {"preset": "attack"}, {"preset": "hurt"}, {"preset": "die"}]
+}

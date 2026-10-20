@@ -43,8 +43,11 @@ Every frame is checked to reproduce exactly through `pixel_art.py`. A spec error
 This example only shows the syntax; it is not an art template.
 
 - `size`: the canvas `[w, h]`, 8–256. Leave room for reach, because a weapon swing or a tail needs space.
-- `rig`: one of `humanoid`, `chibi` or `quadruped`.
-- `proportions`: overrides bone lengths by name. `scale` multiplies them all.
+- `rig`: one of `humanoid`, `chibi`, `quadruped`, `bird`, `serpent` or `slime`.
+- `build`: a body type for `humanoid`, `chibi` and `quadruped`: `bulky`, `slim`, `tall` or `short`. It scales bone lengths by group (legs, arms, body, head) and the thickness of every part, including the spec's own extras. Leave it out for the rig's standard body.
+- `proportions`: overrides bone lengths by name, applied after `build`. `scale` multiplies them all.
+- `motion`: the character's personality, applied to every animation (an anim entry's own `motion` overrides keys). See *Motion personality*.
+- `style`: render style for vector parts. See *Style*.
 - `root_x`: the horizontal position of the hip as a fraction of the width. The lowest foot is always planted on row `h-3`.
 - `pose_offset`: added to every frame and to the rest pose, giving the character its own posture (for example `"lean": 12` for a hunch). `dx` and `dy` shift the whole character, art included.
 - `shadow`: `{"color": "#RRGGBB", "rx": 6, "shrink": 0.06}` draws a 2-row ground shadow under the hip. It shrinks by `shrink` × `rx` per pixel of lift and never covers the art. Use it for floating or jumping characters. Games often want the shadow as a separate sprite, in which case leave it out.
@@ -89,6 +92,54 @@ All characters face right, in side view. Angles are degrees.
   - `die` (flash, buckle, drop, lie on the side with the legs out) takes `ms` and `fade`.
 
 A full mob set is idle, a move (walk, run or float), attack, hurt and die. Death holds its last frame for 600 ms; play it once in the game. Preview GIFs loop every animation.
+
+### Bird
+
+- **Bones:** `body` (also `spine`), `neck`, `head`, `tail`, `wing_n`/`wingtip_n`, `wing_f`/`wingtip_f`, and legs `thigh_*`, `shin_*`, `foot_*`. Default part materials: `body`, `wing`, `beak`, `leg`.
+- **Joints:** `body` (tilt, > 0 chest up), `neck`, `head`, `tail`, `wing_*` (limb angle: −95 folded back, 160 raised), `wingtip_*` (outer wing bend), `hip_*`, `knee_*`, `ankle_*`.
+- **Presets:** `idle` (head bob), `hop`, `fly` (flap with a lagging wingtip; `lift` sets the height), `attack` (rear up, peck), `hurt`, `die`.
+
+### Serpent
+
+- **Bones:** `neck`, `head`, `jaw`, `seg1`…`seg8` running back from the root (where the neck leaves the ground). Default part material: `body`; the jaw can be given its own (`"parts": {"jaw": {"mat": "belly"}}`).
+- **Joints:** `neck`, `head`, `jaw` (opens the mouth), `seg1`…`seg8` (bend of each segment relative to the previous one; > 0 turns down/back).
+- **Presets:** `idle` (sway, tongue flick via `jaw`), `slither` (travelling wave, `amp`), `attack` (coil, strike with the jaw open, bite), `hurt`, `die`.
+
+### Slime
+
+- **Bones:** `body`, which points up from the bottom centre and carries the squash. Default part material: `body`; put eyes and highlights in `stamps` and `extras` on `body`.
+- **Joints:** `stretch` (1 normal, > 1 tall and thin, < 1 squashed flat and wide) and `lean`.
+- **Presets:** `idle` (wobble), `hop` (squash, launch, arc, land), `attack` (lunge stretched forward), `hurt`, `die` (melt into a puddle).
+
+### Squash and stretch
+
+Any bone can carry a `scale`: parts on it stretch along the bone by `scale` and narrow across it by 1/`scale`. The slime uses it for every frame. Part coordinates are always authored at scale 1.
+
+## Motion personality
+
+```json
+"motion": {"weight": 0.8, "energy": 0.3, "exaggeration": 1.2, "seed": 41}
+```
+
+- `weight` (0 light, 1 heavy; default 0.5): heavier means a slower tempo, deeper knee bends and less time in the air.
+- `energy` (0 sluggish, 1 lively; default 0.5): livelier means a faster tempo, bigger swings of the arms, head, tail and wings, and more bounce.
+- `exaggeration` (0–2; default 1): scales every joint's swing away from the rest pose. Use 0.6 for subtle, 1.4 for cartoony.
+- `seed` (integer): gives each joint a fixed small quirk (an angle offset and a gain) and makes the frame timing slightly uneven. Two creatures of one kind with different seeds never move identically; the same seed always repeats exactly.
+
+At the defaults the presets are unchanged. Give every character a personality that matches its identity.
+
+## Style
+
+```json
+"style": {"outline": "selout", "shades": 3, "dither": true, "light": "upper-back"}
+```
+
+- `outline`: `black` (the outline color everywhere), `selout` (each edge takes a darker tone of the fill it borders) or `none`. Leaving it out keeps the standard look: black, with light-facing edges tinted by `ramps`.
+- `shades`: 2, 3 or 4 tones per material (4 uses a material's highlight color, if it has one).
+- `dither`: checkers the boundary between two tones.
+- `light`: `upper-front` (the default), `upper-back`, `top`, `front`, `back`, or degrees (0 from the facing side, 90 from straight above).
+
+`shades`, `dither` and `light` apply to vector parts. Cutout layers keep their painted shading; `outline` applies to both. Share one style across all the assets of a game.
 
 ## Effects and special pose keys
 

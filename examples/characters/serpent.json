@@ -1,0 +1,20 @@
+{
+  "name": "serpent", "size": [64, 40], "rig": "serpent", "root_x": 0.62, "outline": "#10160C",
+  "materials": {
+    "body":   ["#2B3A1E", "#46602E", "#6F8F3E", "#A9C25A"],
+    "belly":  ["#8A7A3A", "#C9B25A", "#EDDC8A"],
+    "tongue": ["#6E1A26", "#B8323E", "#E8606A"]
+  },
+  "parts": {"jaw": {"mat": "belly"}},
+  "extras": [
+    {"name": "tongue", "bone": "jaw", "shape": "poly", "mat": "tongue", "z": 38, "group": "tongue",
+     "points": [[4.2, -0.3], [7, -0.5], [8, -1.5], [7.4, 0], [8, 1.2], [7, 0.4], [4.2, 0.3]]},
+    {"name": "spot1", "bone": "seg2", "shape": "ellipse", "at": [2, 0.8], "rx": 1.2, "ry": 1.4, "mat": "belly", "z": 31, "group": "body"},
+    {"name": "spot2", "bone": "seg4", "shape": "ellipse", "at": [2, 0.6], "rx": 1.0, "ry": 1.2, "mat": "belly", "z": 31, "group": "body"},
+    {"name": "spot3", "bone": "seg6", "shape": "ellipse", "at": [2, 0.4], "rx": 0.8, "ry": 1.0, "mat": "belly", "z": 31, "group": "body"}
+  ],
+  "stamps": [
+    {"bone": "head", "at": [2.4, -1.6], "rows": ["oy"], "colors": {"o": "#10160C", "y": "#F2D24A"}}
+  ],
+  "anims": [{"preset": "idle"}, {"preset": "slither"}, {"preset": "attack"}, {"preset": "hurt"}, {"preset": "die"}]
+}

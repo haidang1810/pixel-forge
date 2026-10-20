@@ -1,6 +1,6 @@
 ---
 name: pixel-forge
-description: Create or revise 2D pixel game assets by authoring editable JSON and rendering with code, without image-generation models. Use when the user requests procedural pixel art, exact pixel control, or text-to-pixel assets without image generation. Covers static icons, items and tiles, and side-view characters and mobs (humanoid, chibi, four-legged) with full mob animation sets (idle, walk, run, float, attack, hurt, die) exported as sprite sheets with pivots.
+description: Create or revise 2D pixel game assets by authoring editable JSON and rendering with code, without image-generation models. Use when the user requests procedural pixel art, exact pixel control, or text-to-pixel assets without image generation. Covers static icons, items and tiles, and side-view characters and mobs (humanoid, chibi, four-legged, bird, serpent, slime) with full animation sets (idle, walk, run, hop, fly, slither, float, attack, hurt, die), body types, motion personality and render styles, exported as sprite sheets with pivots.
 ---
 
 # Pixel Forge
@@ -10,6 +10,18 @@ Create original pixel art through structured drawing data and a deterministic re
 ## Setup
 
 Read [references/format.md](references/format.md) before authoring static JSON. For a character, mob, or any animation, also read [references/rig.md](references/rig.md). Resolve `scripts/pixel_art.py` relative to this skill's directory. It needs Python 3.10+ and Pillow 9.1+. Prefer an existing Python with Pillow; in Codex desktop, `load_workspace_dependencies` can locate the bundled interpreter. On Windows use PowerShell `&` before a quoted interpreter path. If dependencies are absent, install `scripts/requirements.txt` into a task-local virtual environment.
+
+## Make it this user's asset
+
+Ten users asking for "an orc" should not get ten copies of the same orc. Before drawing anything:
+
+1. Write down 2–3 identity traits taken from the user's words, or inferred from their game's genre and tone when the request is short. Examples: "scrawny and twitchy, mismatched scavenged armor"; "slow ancient swamp troll covered in moss". Each trait must change something visible: silhouette, proportions, palette, accessories, how it moves.
+2. Turn the traits into explicit choices instead of defaults, and state them in one line:
+   - shape and colors: silhouette features, a palette built around the traits (avoid the first stock color that comes to mind, such as a green orc or a grey wolf, unless the user asked for it), and accent props;
+   - for characters, also `build` (body type), `motion` (`weight`, `energy`, `exaggeration`, and a `seed` so two creatures of one kind never move identically), `style` (outline, number of shades, dither, light direction) and posture (`pose_offset`).
+3. When the brief leaves room, offer 2–3 short variant directions, or render small variants side by side (for example a different `build`, `motion` or palette), and let the user pick before polishing one. Skip this when the user gave a precise spec.
+
+For a set of assets for one game, keep the style, palette roles and scale shared across the set, and vary identity within it.
 
 ## Authoring
 
@@ -24,7 +36,7 @@ Read [references/format.md](references/format.md) before authoring static JSON. 
 
 Use `scripts/rig2d.py` for side-view characters and animated sprites; do not hand-draw every frame.
 
-1. Pick the rig (`humanoid`, `chibi`, `quadruped`) and canvas, leaving room for reach (weapons, tails, gallop). Give the character its own posture with `pose_offset` and its identity through distinctive parts: silhouette features, accent colors, a readable face.
+1. Pick the rig and canvas, leaving room for reach (weapons, tails, gallop, wings). The rigs are `humanoid`, `chibi`, `quadruped`, `bird`, `serpent` and `slime`. Apply the identity choices above: `build`, `motion`, `style`, `pose_offset`, and distinctive parts such as silhouette features, accent colors and a readable face.
 2. Choose the quality path and say which one:
    - **Vector parts**: shapes on bones, auto-shaded. This is quick and clean, good for prototypes and simple mobs.
    - **Cutout layers**: pixel regions painted once in the rest pose with `draw` ops, then split onto the bones automatically. This is the path toward final art.

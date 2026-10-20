@@ -245,6 +245,74 @@ class Rig2dTests(unittest.TestCase):
         manifest = json.loads((out / "animation.json").read_text(encoding="utf-8"))
         self.assertEqual(sorted(manifest["animations"]), ["attack", "die", "hurt", "idle", "run", "walk"])
 
+    def test_motion_personality(self):
+        presets = self.rig.presets
+        walk = presets.anim("humanoid", "walk")
+        self.assertIs(presets.personalize(walk, "humanoid", {}), walk)  # defaults change nothing
+        heavy = presets.personalize(walk, "humanoid", {"weight": 1, "energy": 0.2})
+        light = presets.personalize(walk, "humanoid", {"weight": 0, "energy": 1})
+        self.assertGreater(sum(ms for _, ms in heavy), sum(ms for _, ms in walk))
+        self.assertLess(sum(ms for _, ms in light), sum(ms for _, ms in walk))
+        swing = lambda frames: max(abs(p["sh_n"] - presets.REST["sh_n"]) for p, _ in frames)
+        self.assertGreater(swing(light), swing(heavy))
+        a = presets.personalize(walk, "humanoid", {"seed": 3})
+        self.assertEqual(a, presets.personalize(walk, "humanoid", {"seed": 3}))
+        self.assertNotEqual(a, presets.personalize(walk, "humanoid", {"seed": 4}))
+
+    def test_builds_change_the_silhouette(self):
+        widths = {}
+        for build in ("bulky", "slim"):
+            spec = humanoid()
+            spec["build"] = build
+            spec["anims"] = [{"preset": "idle", "frames": 1}]
+            result, out = self.run_cli(spec)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            box = opened(out / "idle" / "frame-00.png").getbbox()
+            widths[build] = box[2] - box[0]
+            self.assertEqual(box[3], 39, f"{build} feet should rest on the ground row")
+        self.assertGreater(widths["bulky"], widths["slim"])
+        bad = humanoid(); bad["build"] = "huge"
+        result, _ = self.run_cli(bad)
+        self.assertEqual(result.returncode, 2)
+
+    def test_new_rigs_render_every_preset_on_the_ground(self):
+        mats = {"body": ["#203040", "#405060", "#6080A0"], "wing": ["#202030", "#404060", "#606090"],
+                "beak": ["#806020", "#C09040", "#F0C060"], "leg": ["#604020", "#806040", "#A08060"]}
+        for rig, moves in (("slime", ["idle", "hop", "attack", "hurt", "die"]),
+                           ("serpent", ["idle", "slither", "attack", "hurt", "die"]),
+                           ("bird", ["idle", "hop", "fly", "attack", "hurt", "die"])):
+            spec = {"name": rig, "size": [64, 48], "rig": rig, "outline": "#101010", "root_x": 0.5,
+                    "materials": mats, "anims": [{"preset": m} for m in moves]}
+            result, out = self.run_cli(spec)
+            self.assertEqual(result.returncode, 0, (rig, result.stderr))
+            idle = opened(out / "idle" / "frame-00.png").getbbox()
+            self.assertEqual(idle[3], 47, f"{rig} idle should rest on the ground row")
+            if rig == "bird":
+                flying = opened(out / "fly" / "frame-00.png").getbbox()
+                self.assertLess(flying[3], 47 - 8, "the bird should be off the ground while flying")
+            if rig == "slime":
+                squashed = opened(out / "hop" / "frame-00.png").getbbox()
+                self.assertGreater(squashed[2] - squashed[0], idle[2] - idle[0])
+
+    def test_styles(self):
+        def render(style):
+            spec = humanoid()
+            spec["anims"] = [{"preset": "idle", "frames": 1}]
+            if style:
+                spec["style"] = style
+            result, out = self.run_cli(spec)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return opened(out / "idle" / "frame-00.png")
+        outline = (0x10, 0x10, 0x10, 255)
+        self.assertNotIn(outline, self.rig.pixels_of(render({"outline": "none"})))
+        two = {c for c in self.rig.pixels_of(render({"shades": 2})) if c[3]}
+        lightest = {(0x60, 0x80, 0xA0, 255), (0xE0, 0xB0, 0x90, 255), (0x60, 0x60, 0x60, 255), (0x70, 0x48, 0x30, 255)}
+        self.assertFalse(two & lightest, "two shades should not use the light tone")
+        self.assertNotEqual(render(None).tobytes(), render({"light": "upper-back"}).tobytes())
+        bad = humanoid(); bad["style"] = {"outline": "thick"}
+        result, _ = self.run_cli(bad)
+        self.assertEqual(result.returncode, 2)
+
     def test_scale2x_keeps_flat_regions(self):
         grid = [[1, 1], [1, 1]]
         self.assertEqual(self.rig.scale2x(grid), [[1] * 4 for _ in range(4)])

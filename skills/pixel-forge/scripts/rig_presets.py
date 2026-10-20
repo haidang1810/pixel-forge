@@ -4,6 +4,7 @@ Angles are degrees. Limbs: 0 = straight down, positive = toward the facing side.
 Spine: 0 = upright, positive = lean forward. knee bends the shin backward, el bends the forearm forward.
 """
 import copy
+import random
 import math
 
 
@@ -88,8 +89,92 @@ RIGS["quadruped"] = {
 }
 
 
-def rig(name, proportions):
+# Body types: length factors per bone group, a width factor for every part, and the head size.
+BUILDS = {
+    "humanoid": {
+        "bulky": {"legs": 0.9, "arms": 1.0, "body": 1.0, "head": 0.95, "width": 1.35},
+        "slim": {"legs": 1.1, "arms": 1.1, "body": 1.05, "head": 0.95, "width": 0.75},
+        "tall": {"legs": 1.2, "arms": 1.15, "body": 1.15, "head": 1.0, "width": 0.95},
+        "short": {"legs": 0.75, "arms": 0.85, "body": 0.85, "head": 1.1, "width": 1.1},
+    },
+    "quadruped": {
+        "bulky": {"legs": 0.85, "body": 1.0, "head": 1.05, "width": 1.3},
+        "slim": {"legs": 1.15, "body": 1.05, "head": 0.95, "width": 0.8},
+        "tall": {"legs": 1.3, "body": 1.1, "head": 1.0, "width": 0.95},
+        "short": {"legs": 0.7, "body": 0.9, "head": 1.1, "width": 1.1},
+    },
+}
+BONE_GROUPS = {
+    "humanoid": {"thigh": "legs", "shin": "legs", "foot": "legs", "upper_arm": "arms", "forearm": "arms",
+                 "spine": "body", "shoulder_drop": "body", "head": "head"},
+    "quadruped": {"back_upper": "legs", "back_lower": "legs", "back_foot": "legs", "front_upper": "legs",
+                  "front_lower": "legs", "front_foot": "legs", "body": "body", "neck": "body", "tail": "body", "head": "head"},
+}
+# Which length key each part's bone follows (parts on other bones only change width).
+PART_BONE_KEY = {
+    "humanoid": {"thigh": "thigh", "shin": "shin", "foot": "foot", "upper": "upper_arm", "fore": "forearm",
+                 "spine": "spine", "head": "head"},
+    "quadruped": {"spine": "body", "neck": "neck", "head": "head", "tail": "tail"},
+}
+
+
+def _part_length_key(family, bone):
+    stem = bone.split("_")[0]
+    if family == "quadruped" and stem in ("upper", "lower", "foot") and "_" in bone:
+        kind = "back" if bone.split("_")[1].startswith("b") else "front"
+        return f"{kind}_{stem}"
+    return PART_BONE_KEY.get(family, {}).get(stem)
+
+
+def apply_build(result, build):
+    """Scale bone lengths by group and part thickness by the build's width (heads by head size).
+    The factors are kept on the rig so a spec's own extras can follow the same build."""
+    family = result["family"]
+    b = BUILDS[family][build]
+    groups = BONE_GROUPS[family]
+    along = {}
+    for key in result["bones"]:
+        along[key] = b.get(groups.get(key, ""), 1.0)
+        result["bones"][key] *= along[key]
+    result["build"] = {"along": along, "width": b["width"], "head": b["head"]}
+    feet = [p for p in result["parts"].values() if p["bone"].startswith("foot_") and "r" in p]
+    before = max((max(p["r"]) if isinstance(p["r"], list) else p["r"]) for p in feet) if feet else 0
+    for part in result["parts"].values():
+        scale_part(part, result)
+    after = max((max(p["r"]) if isinstance(p["r"], list) else p["r"]) for p in feet) if feet else 0
+    result["sole"] += after - before  # thicker feet need more room under the ankle
+    return result
+
+
+def scale_part(part, rig):
+    """Apply the rig's build (if any) to one part, in place."""
+    build = rig.get("build")
+    if not build:
+        return part
+    key = _part_length_key(rig["family"], part["bone"])
+    on_head = part["bone"] == "head"
+    along = build["head"] if on_head else build["along"].get(key, 1.0)
+    across = build["head"] if on_head else build["width"]
+    if "r" in part:
+        part["r"] = [r * across for r in part["r"]] if isinstance(part["r"], list) else part["r"] * across
+    if "span" in part:
+        part["span"] = [u * along for u in part["span"]]
+    if "v" in part:
+        part["v"] *= across
+    if part.get("shape") == "ellipse":
+        part["rx"] *= across
+        part["ry"] *= along
+        if "at" in part:
+            part["at"] = [part["at"][0] * along, part["at"][1] * across]
+    if part.get("shape") == "poly":
+        part["points"] = [[u * along, v * across] for u, v in part["points"]]
+    return part
+
+
+def rig(name, proportions, build=None):
     result = copy.deepcopy(RIGS[name])
+    if build:
+        apply_build(result, build)
     scale = proportions.get("scale", 1)
     for bone in result["bones"]:
         result["bones"][bone] = proportions.get(bone, result["bones"][bone] * scale)
@@ -314,12 +399,267 @@ def q_die(ms=1.0, fade=0, **rest):
     return frames + (_fade(lying, fade, round(90 * ms)) if fade else [])
 
 
-REST_POSES = {"humanoid": REST, "quadruped": QREST}
+# ---------- slime, serpent and bird ----------
+
+RIGS["slime"] = {
+    "family": "slime",
+    "bones": {"height": 12},
+    "sole": 0,
+    "ground_bones": ["body"],
+    "parts": {
+        # A dome on the "body" bone (u up from the ground, v forward); squash and stretch scale it.
+        "body": dict(bone="body", shape="poly", mat="body", z=30, group="body",
+                     points=[[0, -9], [0, 9], [4, 9.2], [8.4, 7.2], [11, 4], [12, 0], [11, -4], [8.4, -7.2], [4, -9.2]]),
+    },
+}
+
+RIGS["serpent"] = {
+    "family": "serpent",
+    "bones": {"neck": 9, "head": 6.5, "seg": 4, "segments": 8},
+    "sole": 0,
+    "ground_bones": ["seg", "neck"],
+    "parts": {
+        **{f"seg{i}": dict(bone=f"seg{i}", shape="capsule", r=[3.6 - 0.36 * (i - 1), 3.24 - 0.36 * (i - 1)],
+                           mat="body", z=30 - i, group="body") for i in range(1, 9)},
+        "neck": dict(bone="neck", shape="capsule", span=[-0.5, 9], r=[3.6, 2.6], mat="body", z=32, group="body"),
+        "jaw": dict(bone="jaw", shape="capsule", span=[0.5, 5], r=[1.4, 0.8], mat="body", z=39, group="head"),
+        "head": dict(bone="head", shape="ellipse", at=[3.2, 0], rx=3.1, ry=4.3, mat="body", z=40, group="head"),
+    },
+}
+
+# Wing pieces: a broad inner wing and a feathered outer wing with a notched trailing edge.
+WING = [[0, -2.6], [5.5, -2.8], [5.5, 2.8], [0, 2.8]]
+WINGTIP = [[0, -2.8], [5, -2.6], [8, -1], [7, -0.2], [8.2, 0.8], [6.4, 1.4], [7, 2.6], [4.4, 2.6], [2.4, 3.2], [0, 2.8]]
+
+RIGS["bird"] = {
+    "family": "bird",
+    "bones": {"body": 8, "neck": 4, "head": 5, "tail": 7, "wing_upper": 5.5, "wing_fore": 7.5,
+              "thigh": 3, "shin": 4, "foot": 2.5},
+    "sole": 0.8,
+    "parts": {
+        "wing_f": dict(bone="wing_f", shape="poly", points=WING, mat="wing", z=12, group="wing_f", far=True),
+        "wingtip_f": dict(bone="wingtip_f", shape="poly", points=WINGTIP,
+                          mat="wing", z=13, group="wing_f", far=True),
+        "thigh_f": _limb("thigh_f", [1.4, 0.9], "body", 18, "leg_f", True),
+        "shin_f": _limb("shin_f", [0.6, 0.6], "leg", 19, "leg_f", True),
+        "foot_f": _limb("foot_f", [0.55, 0.55], "leg", 20, "leg_f", True, span=[-1, 2.5]),
+        "tail": dict(bone="tail", shape="poly", points=[[0, -1.4], [5, -2.6], [6.5, -0.5], [6.5, 0.8], [5, 2.4], [0, 1.4]],
+                     mat="wing", z=25, group="tail"),
+        "body": dict(bone="body", shape="ellipse", at=[4, 0.6], rx=4.3, ry=5.8, mat="body", z=30, group="body"),
+        "neck": dict(bone="neck", shape="capsule", span=[-0.5, 3], r=[2.4, 2.0], mat="body", z=31, group="body"),
+        "head": dict(bone="head", shape="ellipse", at=[1, 0], rx=3.1, ry=3.3, mat="body", z=40, group="head"),
+        "beak": dict(bone="head", shape="poly", points=[[2.2, -0.6], [5.6, 0.6], [2.2, 1.6]], mat="beak", z=41, group="head"),
+        "thigh_n": _limb("thigh_n", [1.4, 0.9], "body", 50, "leg_n"),
+        "shin_n": _limb("shin_n", [0.6, 0.6], "leg", 51, "leg_n"),
+        "foot_n": _limb("foot_n", [0.55, 0.55], "leg", 52, "leg_n", span=[-1, 2.5]),
+        "wing_n": dict(bone="wing_n", shape="poly", points=WING, mat="wing", z=60, group="wing_n"),
+        "wingtip_n": dict(bone="wingtip_n", shape="poly", points=WINGTIP,
+                          mat="wing", z=61, group="wing_n"),
+    },
+}
+
+SREST = {"stretch": 1.0, "lean": 0}
+RREST = {"neck": 18, "head": 4, "jaw": 0, "seg1": 8, "seg2": -6, "seg3": -6, "seg4": 4, "seg5": 6, "seg6": -4,
+         "seg7": -6, "seg8": -2}
+BREST = {"body": 14, "neck": 8, "head": 0, "tail": 8, "wing_n": -100, "wingtip_n": -6, "wing_f": -100,
+         "wingtip_f": -6, "hip_n": 10, "knee_n": 35, "ankle_n": -5, "hip_f": 0, "knee_f": 30, "ankle_f": -5}
+
+
+def s_idle(frames=4, ms=170, wobble=0.06, **rest):
+    return [(dict(SREST, **rest, stretch=1 + wobble * math.sin(2 * math.pi * i / frames),
+                  lean=2 * math.sin(2 * math.pi * i / frames + 1)), ms) for i in range(frames)]
+
+
+def s_hop(ms=1.0, height=7, **rest):
+    """Squash, launch stretched, arc through the air, land squashed, settle."""
+    b = dict(SREST, **rest)
+    keys = [(dict(b, stretch=0.72), 110), (dict(b, stretch=1.28, dy=-2), 70), (dict(b, stretch=1.12, dy=-0.8 * height, lean=4), 80),
+            (dict(b, stretch=1.0, dy=-height), 90), (dict(b, stretch=1.1, dy=-0.6 * height, lean=-3), 80),
+            (dict(b, stretch=0.7), 90), (dict(b, stretch=1.08), 90), (dict(b), 100)]
+    return _timed(keys, ms)
+
+
+def s_attack(ms=1.0, **rest):
+    b = dict(SREST, **rest)
+    return _timed([(dict(b, stretch=0.8, lean=-12), 120), (dict(b, stretch=1.35, lean=28, dx=3), 70),
+                   (dict(b, stretch=1.15, lean=18, dx=3), 110), (dict(b, stretch=0.9, lean=4, dx=1), 100), (b, 120)], ms)
+
+
+def s_hurt(ms=1.0, **rest):
+    b = dict(SREST, **rest)
+    return _timed([(dict(b, stretch=0.75, lean=-14, dx=-1, flash=1), 70), (dict(b, stretch=0.85, lean=-8, dx=-2), 100),
+                   (dict(b, stretch=1.05, dx=-1), 90), (b, 120)], ms)
+
+
+def s_die(ms=1.0, fade=0, **rest):
+    """Melt into a puddle."""
+    b = dict(SREST, **rest)
+    puddle = dict(b, stretch=0.48)
+    frames = _timed([(dict(b, stretch=0.8, lean=-10, flash=1), 70), (dict(b, stretch=0.62), 110),
+                     (dict(b, stretch=0.5), 120), (puddle, 600)], ms)
+    return frames + (_fade(puddle, fade, round(90 * ms)) if fade else [])
+
+
+def _wave(t, amp, k=0.9):
+    return {f"seg{i}": RREST[f"seg{i}"] + amp * math.sin(t - i * k) for i in range(1, 9)}
+
+
+def r_idle(frames=6, ms=140, **rest):
+    out = []
+    for i in range(frames):
+        t = 2 * math.pi * i / frames
+        out.append((dict(RREST, **rest, **_wave(t, 4), neck=RREST["neck"] + 4 * math.sin(t), head=RREST["head"] - 4 * math.sin(t),
+                         jaw=8 if i == frames // 2 else 0), ms))
+    return out
+
+
+def r_slither(frames=8, ms=90, amp=14, **rest):
+    """A wave travels from the neck to the tail; the head stays level."""
+    out = []
+    for i in range(frames):
+        t = 2 * math.pi * i / frames
+        out.append((dict(RREST, **rest, **_wave(t, amp), neck=RREST["neck"] + 3 * math.sin(t), head=RREST["head"] - 3 * math.sin(t)), ms))
+    return out
+
+
+def r_attack(ms=1.0, **rest):
+    """Coil back, strike forward with the jaw open, bite, return."""
+    b = dict(RREST, **rest)
+    coil = dict(b, neck=-15, head=-10, seg1=30, seg2=-20, dx=-2)
+    strike = dict(b, neck=68, head=6, jaw=32, dx=4, seg1=-4)
+    bite = dict(b, neck=66, head=14, jaw=4, dx=4, seg1=-2)
+    return _timed([(coil, 140), (strike, 70), (bite, 120), (_lerp(bite, b, 0.5), 110), (b, 120)], ms)
+
+
+def r_hurt(ms=1.0, **rest):
+    b = dict(RREST, **rest)
+    hit = dict(b, neck=10, head=-15, dx=-1, flash=1, seg1=18)
+    return _timed([(hit, 70), (dict(hit, flash=0, dx=-2), 100), (_lerp(hit, b, 0.5), 90), (b, 120)], ms)
+
+
+def r_die(ms=1.0, fade=0, **rest):
+    b = dict(RREST, **rest)
+    flat = {f"seg{i}": 0 for i in range(1, 9)}
+    limp = dict(b, **flat, neck=100, head=10, jaw=12, plant="all")
+    frames = _timed([(dict(b, neck=10, head=-15, flash=1), 70), (dict(b, neck=60, head=30, jaw=20), 110), (limp, 600)], ms)
+    return frames + (_fade(limp, fade, round(90 * ms)) if fade else [])
+
+
+def _over_the_top(pose):
+    """Folded wings expressed past 180 degrees, so blending from raised wings folds them back over
+    the top instead of sweeping down through the legs."""
+    return dict(pose, wing_n=pose["wing_n"] + 360, wing_f=pose["wing_f"] + 360)
+
+
+def b_idle(frames=4, ms=180, **rest):
+    out = []
+    for i in range(frames):
+        t = 2 * math.pi * i / frames
+        out.append((dict(BREST, **rest, neck=BREST["neck"] + 5 * math.sin(t), head=BREST["head"] + 6 * math.sin(2 * t),
+                         tail=BREST["tail"] + 6 * math.sin(t + 1)), ms))
+    return out
+
+
+def b_hop(ms=1.0, height=4, **rest):
+    b = dict(BREST, **rest)
+    crouch = dict(b, knee_n=70, knee_f=65, hip_n=30, hip_f=20, body=6, tail=0)
+    air = dict(b, knee_n=50, knee_f=50, hip_n=-10, hip_f=-20, dy=-height, wing_n=-60, wing_f=-60, tail=16)
+    return _timed([(crouch, 110), (air, 90), (dict(air, dy=-0.5 * height), 80), (crouch, 90), (b, 120)], ms)
+
+
+def b_fly(frames=6, ms=80, lift=14, **rest):
+    """Flap: the outer wing lags the inner one; the body rises on the downstroke; legs tucked."""
+    out = []
+    for i in range(frames):
+        t = 2 * math.pi * i / frames
+        out.append((dict(BREST, **rest, wing_n=90 + 70 * math.cos(t), wingtip_n=-25 * math.sin(t),
+                         wing_f=85 + 70 * math.cos(t), wingtip_f=-25 * math.sin(t), body=4, neck=40, head=-4, tail=2,
+                         hip_n=-50, knee_n=-40, hip_f=-55, knee_f=-40, dy=-lift - 1.5 * math.sin(t)), ms))
+    return out
+
+
+def b_attack(ms=1.0, **rest):
+    """Rear up with the wings raised, then peck down and forward."""
+    b = dict(BREST, **rest)
+    rear = dict(b, body=28, neck=5, head=-12, wing_n=150, wing_f=145, wingtip_n=-20, wingtip_f=-20, tail=-4)
+    peck = dict(b, body=-14, neck=58, head=28, dx=3, wing_n=125, wing_f=120, wingtip_n=10, wingtip_f=10, tail=24)
+    return _timed([(rear, 130), (peck, 70), (dict(peck, head=34), 110), (_lerp(peck, _over_the_top(b), 0.5), 100), (b, 120)], ms)
+
+
+def b_hurt(ms=1.0, **rest):
+    b = dict(BREST, **rest)
+    hit = dict(b, body=26, neck=-5, head=-14, wing_n=120, wing_f=115, dx=-1, flash=1)
+    return _timed([(hit, 70), (dict(hit, flash=0, dx=-2, wing_n=150, wing_f=145), 100), (_lerp(hit, _over_the_top(b), 0.6), 90), (b, 120)], ms)
+
+
+def b_die(ms=1.0, fade=0, **rest):
+    """Flash, flutter and drop, then lie with the wings spread and the head down."""
+    b = dict(BREST, **rest)
+    lying = dict(b, body=-8, neck=100, head=20, wing_n=30, wingtip_n=10, wing_f=40, wingtip_f=10, tail=-10,
+                 hip_n=120, knee_n=10, hip_f=110, knee_f=10, plant="all")
+    frames = _timed([(dict(b, body=26, head=-14, wing_n=130, wing_f=125, flash=1), 70),
+                     (dict(b, body=-30, neck=70, head=30, wing_n=70, wing_f=65, plant="all"), 110), (lying, 600)], ms)
+    return frames + (_fade(lying, fade, round(90 * ms)) if fade else [])
+
+
+REST_POSES = {"humanoid": REST, "quadruped": QREST, "slime": SREST, "serpent": RREST, "bird": BREST}
 
 
 ANIMS = {"humanoid": {"idle": idle, "walk": walk, "attack": attack, "float": float_, "hurt": hurt, "die": die},
-         "quadruped": {"idle": q_idle, "walk": q_walk, "run": q_run, "attack": q_attack, "hurt": q_hurt, "die": q_die}}
+         "quadruped": {"idle": q_idle, "walk": q_walk, "run": q_run, "attack": q_attack, "hurt": q_hurt, "die": q_die},
+         "slime": {"idle": s_idle, "hop": s_hop, "attack": s_attack, "hurt": s_hurt, "die": s_die},
+         "serpent": {"idle": r_idle, "slither": r_slither, "attack": r_attack, "hurt": r_hurt, "die": r_die},
+         "bird": {"idle": b_idle, "hop": b_hop, "fly": b_fly, "attack": b_attack, "hurt": b_hurt, "die": b_die}}
 
 
 def anim(family, name, **params):
     return ANIMS[family][name](**params)
+
+
+# ---------- motion personality ----------
+
+MOTION_DEFAULTS = {"weight": 0.5, "energy": 0.5, "exaggeration": 1.0}
+SPECIAL_KEYS = {"flash", "plant", "dissolve"}
+SWING = ("sh_", "el_", "head", "neck", "tail", "wing", "jaw", "seg")
+BEND = ("knee_", "ankle_", "stretch")
+
+
+def personalize(frames, family, motion):
+    """Give a preset its character. At the defaults (weight 0.5, energy 0.5, exaggeration 1, no seed)
+    every factor is 1 and the frames come back unchanged.
+
+    weight        0 light .. 1 heavy: slower tempo, deeper knee bend, less time in the air
+    energy        0 sluggish .. 1 lively: faster tempo, bigger arm/head/tail swing, more bounce
+    exaggeration  scales every joint's swing away from the rest pose (0.5 subtle, 1.5 cartoony)
+    seed          a fixed quirk per joint (small angle offset and gain) and uneven frame timing,
+                  so two creatures of one kind never move identically; the same seed repeats exactly
+    """
+    m = dict(MOTION_DEFAULTS, **(motion or {}))
+    w, e, x, seed = m["weight"], m["energy"], m["exaggeration"], m.get("seed")
+    if (w, e, x) == (0.5, 0.5, 1.0) and seed is None:
+        return frames
+    rest = REST_POSES[family]
+    tempo = (0.8 + 0.4 * w) * (1.3 - 0.6 * e)
+    keys = sorted({k for pose, _ in frames for k, v in pose.items()
+                   if k not in SPECIAL_KEYS and isinstance(v, (int, float))})
+    rng = random.Random(seed) if seed is not None else None
+    quirks = {k: (rng.uniform(-3, 3), rng.uniform(0.85, 1.15)) for k in keys if k not in ("dx", "dy")} if rng else {}
+    out = []
+    for pose, ms in frames:
+        new = dict(pose)
+        for k in keys:
+            if k not in pose:
+                continue
+            base = rest.get(k, 0)
+            gain = x
+            if k == "dy":
+                gain *= (1.5 - w) * (0.5 + e)
+            elif k.startswith(BEND):
+                gain *= 0.6 + 0.8 * w
+            elif k.startswith(SWING):
+                gain *= 0.5 + e
+            offset, quirk = quirks.get(k, (0.0, 1.0))
+            new[k] = base + (pose[k] - base) * gain * quirk + offset
+        jitter = 1 + rng.uniform(-0.08, 0.08) if rng else 1
+        out.append((new, max(20, round(ms * tempo * jitter))))
+    return out

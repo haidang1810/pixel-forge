@@ -84,17 +84,50 @@ def items_gif():
     quant[0].save(IMAGES / "items.gif", save_all=True, append_images=quant[1:], duration=durations, loop=0)
 
 
+# One orc spec, four identities: what build, motion, style and palette change on their own.
+ORC_VARIANTS = {
+    "scout": {"build": "slim", "motion": {"weight": 0.15, "energy": 0.9, "seed": 11},
+              "skin": ["#3B4A3A", "#62806A", "#94B89C"]},
+    "brute": {"build": "bulky", "motion": {"weight": 0.95, "energy": 0.25, "seed": 22},
+              "skin": ["#4A3A24", "#7A6234", "#AE9450"]},
+    "warlord": {"build": "tall", "motion": {"weight": 0.6, "energy": 0.6, "exaggeration": 1.3, "seed": 33},
+                "style": {"outline": "selout"}, "skin": ["#4A2430", "#7A3A48", "#B05A66"]},
+    "grunt": {"build": "short", "motion": {"weight": 0.5, "energy": 0.7, "seed": 44},
+              "style": {"shades": 3, "dither": True}, "skin": ["#2F4A24", "#4F7A34", "#7FAE4E"]},
+}
+
+
+def orc_variants():
+    import json
+    base = json.loads((EXAMPLES / "orc.json").read_text(encoding="utf-8"))
+    folder = RENDER / "variants"
+    folder.mkdir(parents=True, exist_ok=True)
+    for name, v in ORC_VARIANTS.items():
+        spec = dict(base, name=f"orc-{name}", build=v["build"], motion=v["motion"],
+                    materials=dict(base["materials"], skin=v["skin"]),
+                    anims=[{"preset": "walk", "frames": 8, "ms": 110, "stride": 20, "knee": 30}])
+        if "style" in v:
+            spec["style"] = v["style"]
+        path = folder / f"{name}.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        run(SCRIPTS / "rig2d.py", path, "--out", RENDER / name)
+    showcase([f"{n}/walk" for n in ORC_VARIANTS], IMAGES / "variety.gif", 4, 3, 2200)
+
+
 def main():
     IMAGES.mkdir(parents=True, exist_ok=True)
     RENDER.mkdir(parents=True, exist_ok=True)
     run(ROOT / "demo" / "items" / "build_items.py")
-    for name in ("wolf", "orc", "ghost", "knight", "mage"):
+    for name in ("wolf", "orc", "ghost", "knight", "mage", "slime", "serpent", "raven"):
         run(SCRIPTS / "rig2d.py", EXAMPLES / f"{name}.json", "--out", RENDER / name)
     run(SCRIPTS / "rig2d.py", EXAMPLES / "wolf.json", "--out", RENDER / "wolf-rest", "--rest", "--scale", 10)
     showcase(["wolf/idle", "wolf/run", "wolf/attack", "wolf/hurt", "wolf/die"], IMAGES / "wolf.gif", 5, 3, 2600)
     showcase(["orc/idle", "orc/walk", "orc/attack", "orc/hurt", "orc/die"], IMAGES / "orc.gif", 5, 3, 2600)
     showcase(["ghost/float", "ghost/fly", "ghost/hurt", "ghost/die"], IMAGES / "ghost.gif", 4, 3, 2600)
     showcase(["knight/idle", "knight/walk", "knight/attack", "mage/idle", "mage/walk"], IMAGES / "heroes.gif", 5, 3, 2400)
+    showcase(["slime/hop", "slime/attack", "serpent/slither", "serpent/attack", "raven/fly", "raven/attack"],
+             IMAGES / "critters.gif", 6, 3, 2400)
+    orc_variants()
     with Image.open(RENDER / "wolf-rest" / "rest-grid.png") as grid:
         grid.convert("RGB").save(IMAGES / "wolf-rig.png", optimize=True)
     items_sheet()

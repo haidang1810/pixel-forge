@@ -21,6 +21,14 @@ Each mob has a full set of animations: idle, a move, attack, hurt and die.
 
 <img src="docs/images/ghost.gif" alt="Ghost: float, fly, hurt and dissolving death" width="80%">
 
+<img src="docs/images/critters.gif" alt="Slime hop and attack, serpent slither and strike, raven flight and peck" width="100%">
+
+### One spec, many creatures
+
+These four orcs come from one spec. Each one changes only its `build`, `motion` personality, `style` and skin palette. The skill makes the agent pick traits like these from each request, so different users get different creatures rather than the same default orc.
+
+<img src="docs/images/variety.gif" alt="Four orc variants walking: slim scout, bulky brute, tall warlord, short grunt" width="100%">
+
 ### Heroes
 
 <img src="docs/images/heroes.gif" alt="Knight idle, walk and attack; mage idle and walk" width="100%">
@@ -36,7 +44,8 @@ Each mob has a full set of animations: idle, a move, attack, hurt and die.
 | | |
 |---|---|
 | **Static assets** | Items, icons and tiles drawn as palette-indexed layers (rows of symbols plus polygons, rects, lines and pixels). Each one is rendered to a native transparent PNG, an enlarged preview and a coordinate grid, and stays patchable by layer. |
-| **Rigged characters** | `humanoid`, `chibi` and `quadruped` skeletons, posed by animation presets: idle, walk, run, float, attack, hurt and die. Effects include a hit flash, a dither dissolve and lying poses that rest on the ground line. |
+| **Rigged characters** | `humanoid`, `chibi`, `quadruped`, `bird`, `serpent` and `slime` skeletons, posed by animation presets: idle, walk, run, hop, fly, slither, float, attack, hurt and die. Effects include squash and stretch, a hit flash, a dither dissolve and lying poses that rest on the ground line. |
+| **Variety** | Body types (`bulky`, `slim`, `tall`, `short`), a motion personality (`weight`, `energy`, `exaggeration`, `seed`) and render styles (outline, number of shades, dither, light direction). |
 | **Two quality paths** | **Vector parts** (shapes on bones, auto-shaded) are quick for prototypes. **Cutout layers** are pixel regions painted once in the rest pose and rotated RotSprite-style, for final art. |
 | **Game-ready output** | Each animation is exported as a sprite sheet, plus `animation.json` with frame rects, timings and a pivot per frame, a preview GIF and a contact sheet. |
 | **Editable to the pixel** | Per-frame `touchups` live in the spec and survive re-renders. Every frame is also exported as editable JSON and checked to reproduce exactly. |
@@ -101,8 +110,8 @@ skills/pixel-forge/          the skill: SKILL.md, references, scripts and tests
   scripts/rig2d.py           rigged characters and animation export
   scripts/rig_presets.py     rigs and animation presets
   scripts/cutout_tools.py    draw ops and splitting cutout regions onto bones
-examples/characters/          character specs: knight, mage, sorceress, orc, wolf and ghost
-                             (cutout), wolf-vector and ghost-vector (vector parts)
+examples/characters/          character specs: knight, mage, sorceress, orc, slime, serpent,
+                             raven, wolf and ghost (cutout), wolf-vector and ghost-vector
 demo/items/                  item sources (editable JSON) and their build script
 demo/make_readme_media.py    rebuilds docs/images
 evaluation/                  early baseline and tool-review material
