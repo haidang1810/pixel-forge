@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills" / "pixel-forge" / "scripts"
-EXAMPLES = ROOT / "prototype" / "rig2d" / "examples"
+EXAMPLES = ROOT / "examples" / "characters"
 RENDER = ROOT / "output" / "readme"
 IMAGES = ROOT / "docs" / "images"
 BG = (34, 38, 54, 255)
@@ -88,14 +88,14 @@ def main():
     IMAGES.mkdir(parents=True, exist_ok=True)
     RENDER.mkdir(parents=True, exist_ok=True)
     run(ROOT / "demo" / "items" / "build_items.py")
-    for name in ("wolf3", "orc", "ghost2", "knight", "mage"):
+    for name in ("wolf", "orc", "ghost", "knight", "mage"):
         run(SCRIPTS / "rig2d.py", EXAMPLES / f"{name}.json", "--out", RENDER / name)
-    run(SCRIPTS / "rig2d.py", EXAMPLES / "wolf3.json", "--out", RENDER / "wolf3-rest", "--rest", "--scale", 10)
-    showcase(["wolf3/idle", "wolf3/run", "wolf3/attack", "wolf3/hurt", "wolf3/die"], IMAGES / "wolf.gif", 5, 3, 2600)
+    run(SCRIPTS / "rig2d.py", EXAMPLES / "wolf.json", "--out", RENDER / "wolf-rest", "--rest", "--scale", 10)
+    showcase(["wolf/idle", "wolf/run", "wolf/attack", "wolf/hurt", "wolf/die"], IMAGES / "wolf.gif", 5, 3, 2600)
     showcase(["orc/idle", "orc/walk", "orc/attack", "orc/hurt", "orc/die"], IMAGES / "orc.gif", 5, 3, 2600)
-    showcase(["ghost2/float", "ghost2/fly", "ghost2/hurt", "ghost2/die"], IMAGES / "ghost.gif", 4, 3, 2600)
+    showcase(["ghost/float", "ghost/fly", "ghost/hurt", "ghost/die"], IMAGES / "ghost.gif", 4, 3, 2600)
     showcase(["knight/idle", "knight/walk", "knight/attack", "mage/idle", "mage/walk"], IMAGES / "heroes.gif", 5, 3, 2400)
-    with Image.open(RENDER / "wolf3-rest" / "rest-grid.png") as grid:
+    with Image.open(RENDER / "wolf-rest" / "rest-grid.png") as grid:
         grid.convert("RGB").save(IMAGES / "wolf-rig.png", optimize=True)
     items_sheet()
     items_gif()

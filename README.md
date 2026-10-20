@@ -67,7 +67,7 @@ python -m unittest discover -s skills/pixel-forge/scripts/tests
 Render the wolf, then make a preview GIF:
 
 ```bash
-python skills/pixel-forge/scripts/rig2d.py prototype/rig2d/examples/wolf3.json --out output/wolf
+python skills/pixel-forge/scripts/rig2d.py examples/characters/wolf.json --out output/wolf
 python skills/pixel-forge/scripts/showcase.py wolf/idle wolf/run wolf/attack --root output --out wolf.gif
 ```
 
@@ -101,7 +101,8 @@ skills/pixel-forge/          the skill: SKILL.md, references, scripts and tests
   scripts/rig2d.py           rigged characters and animation export
   scripts/rig_presets.py     rigs and animation presets
   scripts/cutout_tools.py    draw ops and splitting cutout regions onto bones
-prototype/rig2d/examples/    character specs (knight, mage, orc, wolves, ghosts)
+examples/characters/          character specs: knight, mage, sorceress, orc, wolf and ghost
+                             (cutout), wolf-vector and ghost-vector (vector parts)
 demo/items/                  item sources (editable JSON) and their build script
 demo/make_readme_media.py    rebuilds docs/images
 evaluation/                  early baseline and tool-review material
@@ -113,3 +114,7 @@ evaluation/                  early baseline and tool-review material
 - Pixels are opaque or transparent; there is no blended alpha.
 - Motions beyond the presets need a new preset function.
 - Generated characters reach clean indie quality, especially with cutout layers and hand touch-ups, but are not guaranteed to match hand-made commercial pixel art.
+
+## License
+
+[MIT](LICENSE). The code, the skill and the example assets may be used in your own projects, including commercial games.
