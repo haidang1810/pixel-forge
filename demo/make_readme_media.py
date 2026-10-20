@@ -135,6 +135,28 @@ def polish_compare():
     showcase(["knight-raw/attack", "knight/attack", "orc-raw/attack", "orc/attack"], IMAGES / "polish.gif", 4, 4, 2200)
 
 
+# A sample of the preset packs, each on a character it suits.
+MOVES = [("knight", "heavy_attack", {}), ("knight", "jump", {}), ("mage", "cast", {}), ("knight", "combo", {}),
+         ("wolf-vector", "howl", {}), ("wolf-vector", "leap", {}), ("raven", "glide", {}), ("serpent", "rear_up", {}),
+         ("slime", "bounce_slam", {}), ("orc", "kick", {})]
+
+
+def moves():
+    import json
+    folder = RENDER / "moves"
+    folder.mkdir(parents=True, exist_ok=True)
+    cells = []
+    for character, preset, extra in MOVES:
+        spec = json.loads((EXAMPLES / f"{character}.json").read_text(encoding="utf-8"))
+        name = f"{character}-{preset}"
+        spec["anims"] = [dict({"preset": preset}, **extra)]
+        path = folder / f"{name}.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        run(SCRIPTS / "rig2d.py", path, "--out", RENDER / name)
+        cells.append(f"{name}/{preset}")
+    showcase(cells, IMAGES / "moves.gif", 5, 3, 2600)
+
+
 def main():
     IMAGES.mkdir(parents=True, exist_ok=True)
     RENDER.mkdir(parents=True, exist_ok=True)
@@ -150,6 +172,7 @@ def main():
              IMAGES / "critters.gif", 6, 3, 2400)
     orc_variants()
     polish_compare()
+    moves()
     with Image.open(RENDER / "wolf-rest" / "rest-grid.png") as grid:
         grid.convert("RGB").save(IMAGES / "wolf-rig.png", optimize=True)
     items_sheet()

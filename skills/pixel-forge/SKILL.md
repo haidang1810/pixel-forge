@@ -1,6 +1,6 @@
 ---
 name: pixel-forge
-description: Create or revise 2D pixel game assets by authoring editable JSON and rendering with code, without image-generation models. Use when the user requests procedural pixel art, exact pixel control, or text-to-pixel assets without image generation. Covers static icons, items and tiles, and side-view characters and mobs (humanoid, chibi, four-legged, bird, serpent, slime) with full animation sets (idle, walk, run, hop, fly, slither, float, attack, hurt, die), body types, motion personality and render styles, exported as sprite sheets with pivots.
+description: Create or revise 2D pixel game assets by authoring editable JSON and rendering with code, without image-generation models. Use when the user requests procedural pixel art, exact pixel control, or text-to-pixel assets without image generation. Covers static icons, items and tiles, and side-view characters and mobs (humanoid, chibi, four-legged, bird, serpent, slime) with about 90 animation presets (locomotion, jumps, combat, casting, emotes, sitting and sleeping, hurt and death), body types, motion personality and render styles, exported as sprite sheets with pivots.
 ---
 
 # Pixel Forge
@@ -13,12 +13,13 @@ Read [references/format.md](references/format.md) before authoring static JSON. 
 
 ## Make it this user's asset
 
-Ten users asking for "an orc" should not get ten copies of the same orc. Before drawing anything:
+Ten users asking for "an orc" should not get ten copies of the same orc. Read [references/design.md](references/design.md) for the shape language, the role table, proportions by sprite size and color rules. Before drawing anything:
 
 1. Write down 2–3 identity traits taken from the user's words, or inferred from their game's genre and tone when the request is short. Examples: "scrawny and twitchy, mismatched scavenged armor"; "slow ancient swamp troll covered in moss". Each trait must change something visible: silhouette, proportions, palette, accessories, how it moves.
 2. Turn the traits into explicit choices instead of defaults, and state them in one line:
    - shape and colors: silhouette features, a palette built around the traits (avoid the first stock color that comes to mind, such as a green orc or a grey wolf, unless the user asked for it), and accent props;
-   - for characters, also `build` (body type), `motion` (`weight`, `energy`, `exaggeration`, and a `seed` so two creatures of one kind never move identically), `style` (outline, number of shades, dither, light direction) and posture (`pose_offset`).
+   - for characters, also `build` (body type: `bulky`, `slim`, `tall`, `short`, `child`, `elderly`, `brute`), `motion` (`weight`, `energy`, `exaggeration`, `follow`, and a `seed` so two creatures of one kind never move identically), `style` (outline, number of shades, dither, light direction) and posture (`pose_offset`);
+   - for a set of assets, one bundled `palette_kit` (`pico-8`, `dawnbringer-16`, `dawnbringer-32`, `aap-64`, `sweetie-16`, `endesga-32`) shared by every asset, with materials taken from its named ramps and `style.snap` keeping every pixel inside it.
 3. When the brief leaves room, offer 2–3 short variant directions, or render small variants side by side (for example a different `build`, `motion` or palette), and let the user pick before polishing one. Skip this when the user gave a precise spec.
 
 For a set of assets for one game, keep the style, palette roles and scale shared across the set, and vary identity within it.

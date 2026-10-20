@@ -394,7 +394,7 @@ class Rig2dTests(unittest.TestCase):
 
     def test_invalid_specs_fail_without_outputs(self):
         cases = []
-        bad = humanoid(); bad["anims"] = [{"preset": "run"}]; cases.append((bad, "not a humanoid preset"))
+        bad = humanoid(); bad["anims"] = [{"preset": "teleport"}]; cases.append((bad, "not a humanoid preset"))
         bad = humanoid(); bad["extras"] = [{"bone": "wing", "shape": "capsule", "r": 1, "mat": "body", "z": 1}]
         cases.append((bad, "unknown bone"))
         bad = humanoid(); bad["parts"] = {"head": {"mat": "gold"}}; cases.append((bad, "not defined in materials"))

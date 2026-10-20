@@ -503,10 +503,18 @@ def place(spec, rig, pose):
 def rest_pose(spec, rig):
     """The pose cutout layers are drawn in: the family's rest pose plus the character's posture."""
     pose = dict(presets.REST_POSES[rig.get("family", "humanoid")])
-    for k, v in spec.get("pose_offset", {}).items():
+    for k, v in posture(spec, rig).items():
         if k not in ("dx", "dy"):  # a global shift moves the art too, so layers stay drawn where they are
             pose[k] = pose.get(k, 0) + v
     return pose
+
+
+def posture(spec, rig, anim=None):
+    """Joint offsets added to every frame: the build's own posture, plus the spec's pose_offset
+    (an anim entry's pose_offset replaces the spec's value for each key it names)."""
+    own = {**spec.get("pose_offset", {}), **((anim or {}).get("pose_offset", {}))}
+    build = (rig.get("build") or {}).get("pose", {})
+    return {k: build.get(k, 0) + own.get(k, 0) for k in set(build) | set(own)}
 
 
 def apply_touchups(image, spec, anim, index):
@@ -543,6 +551,23 @@ def make_darken(spec, outline, materials=False):
     return darken
 
 
+def snap_to_kit(image, slug):
+    """Replace every opaque color by the nearest color of the palette kit (perceptually weighted)."""
+    targets = [hex_rgba(c) for c in palette_tools.kit(slug)["colors"]]
+    cache = {}
+
+    def nearest(c):
+        if c not in cache:
+            cache[c] = min(targets, key=lambda t: 2 * (t[0] - c[0]) ** 2 + 4 * (t[1] - c[1]) ** 2 + 3 * (t[2] - c[2]) ** 2)
+        return cache[c]
+    px = image.load()
+    for y in range(image.height):
+        for x in range(image.width):
+            c = px[x, y]
+            if c[3]:
+                px[x, y] = nearest(c)
+
+
 BAYER4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
 
@@ -572,6 +597,8 @@ def render_frame(spec, rig, pose, parts, previous=None):
         for p, c in zip(((x, y) for y in range(image.height) for x in range(image.width)), pixels_of(image)):
             if c[3] and c != outline:
                 image.putpixel(p, flash)
+    if (spec.get("style") or {}).get("snap"):
+        snap_to_kit(image, spec["palette_kit"])
     amount = pose.get("dissolve", 0)
     if amount > 0:
         for y in range(image.height):
@@ -704,8 +731,9 @@ def _render(spec, rig, pose, parts, previous=None):
                 if abs(x + 0.5 - cx) <= rx - (y == h - 2) and (x, y) not in color:
                     color[(x, y)] = fill
     image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    for p, c in color.items():
-        image.putpixel(p, c)
+    for (x, y), c in color.items():
+        if 0 <= x < w and 0 <= y < h:  # negative indexes would wrap to the far edge
+            image.putpixel((x, y), c)
     return image
 
 
@@ -787,7 +815,7 @@ def write_rest_sheet(spec, rig, out, scale):
 SPEC_KEYS = {"name", "size", "rig", "root_x", "outline", "proportions", "pose_offset", "materials", "parts",
              "extras", "stamps", "anims", "palette", "cutout", "ramps", "cleanup", "selout", "selout_steps",
              "far_steps", "far_shade", "touchups", "shadow", "draw", "flash", "motion", "build", "style",
-             "palette_gen", "smear"}
+             "palette_gen", "smear", "palette_kit"}
 HEX = "0123456789abcdefABCDEF"
 
 
@@ -800,8 +828,10 @@ def prepare_spec(spec):
     if not isinstance(spec, dict):
         raise ValueError("spec: expected a JSON object")
     spec = palette_tools.expand_palette(spec)
+    if "palette_kit" in spec:
+        palette_tools.kit(spec["palette_kit"])  # unknown kits fail early with the list of names
     if isinstance(spec.get("materials"), dict):
-        spec = dict(spec, materials=palette_tools.expand_materials(spec["materials"]))
+        spec = dict(spec, materials=palette_tools.expand_materials(spec["materials"], spec.get("palette_kit")))
     return spec
 
 
@@ -905,8 +935,10 @@ def validate_spec(spec):
             layers[layer.get("name")] = layer
     style = spec.get("style")
     if style is not None:
-        if not isinstance(style, dict) or set(style) - {"outline", "shades", "dither", "light", "polish"}:
-            raise ValueError("style: expected an object with outline, shades, dither, light and/or polish")
+        if not isinstance(style, dict) or set(style) - {"outline", "shades", "dither", "light", "polish", "snap"}:
+            raise ValueError("style: expected an object with outline, shades, dither, light, polish and/or snap")
+        if style.get("snap") and "palette_kit" not in spec:
+            raise ValueError("style.snap: needs a palette_kit to snap to")
         pol = style.get("polish", False)
         if not (isinstance(pol, bool) or (isinstance(pol, dict) and set(pol) <= set(polish.PASSES)
                                           and all(isinstance(v, bool) for v in pol.values()))):
@@ -991,10 +1023,10 @@ def main(argv=None):
         family = rig.get("family", "humanoid")
         frames = presets.personalize(presets.anim(family, anim["preset"], **params), family,
                                      {**spec.get("motion", {}), **anim.get("motion", {})},
-                                     loop=anim["preset"] in presets.LOOPING)
+                                     loop=anim["preset"] in presets.LOOPING_BY_FAMILY.get(family, set()))
         images = []
         (out / name).mkdir(exist_ok=True)
-        offset = {**spec.get("pose_offset", {}), **anim.get("pose_offset", {})}
+        offset = posture(spec, rig, anim)
         drawn = None
         for i, (pose, duration) in enumerate(frames):
             # Character posture (hunch, wide stance...) is added on top of every preset frame.

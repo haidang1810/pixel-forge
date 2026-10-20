@@ -96,6 +96,12 @@ BUILDS = {
         "slim": {"legs": 1.1, "arms": 1.1, "body": 1.05, "head": 0.95, "width": 0.75},
         "tall": {"legs": 1.2, "arms": 1.15, "body": 1.15, "head": 1.0, "width": 0.95},
         "short": {"legs": 0.75, "arms": 0.85, "body": 0.85, "head": 1.1, "width": 1.1},
+        # From docs/research/proportions.md: big head and short limbs; bent, forward posture; a top-heavy giant.
+        "child": {"legs": 0.8, "arms": 0.85, "body": 0.85, "head": 1.2, "width": 0.95},
+        "elderly": {"legs": 0.95, "arms": 1.0, "body": 0.97, "head": 1.0, "width": 0.9,
+                    "pose": {"lean": 10, "head": 6, "knee_n": 8, "knee_f": 8, "hip_n": 4, "hip_f": 4}},
+        "brute": {"legs": 0.85, "arms": 1.25, "body": 1.05, "head": 0.8, "width": 1.5,
+                  "pose": {"lean": 10, "head": -6, "sh_n": 8, "sh_f": 8}},
     },
     "quadruped": {
         "bulky": {"legs": 0.85, "body": 1.0, "head": 1.05, "width": 1.3},
@@ -136,7 +142,7 @@ def apply_build(result, build):
     for key in result["bones"]:
         along[key] = b.get(groups.get(key, ""), 1.0)
         result["bones"][key] *= along[key]
-    result["build"] = {"along": along, "width": b["width"], "head": b["head"]}
+    result["build"] = {"along": along, "width": b["width"], "head": b["head"], "pose": dict(b.get("pose", {}))}
     feet = [p for p in result["parts"].values() if p["bone"].startswith("foot_") and "r" in p]
     before = max((max(p["r"]) if isinstance(p["r"], list) else p["r"]) for p in feet) if feet else 0
     for part in result["parts"].values():
@@ -213,7 +219,7 @@ def _fade(pose, steps, ms, rise=0):
     return [(dict(pose, dissolve=(i + 1) / steps, dy=pose.get("dy", 0) - rise * (i + 1)), ms) for i in range(steps)]
 
 
-def idle(frames=4, ms=160, breath=4, **rest):
+def idle(frames=4, ms=280, breath=4, **rest):
     out = []
     for i in range(frames):
         t = (1 - math.cos(2 * math.pi * i / frames)) / 2
@@ -320,7 +326,7 @@ def _legs(t, phases, swing, fold):
     return out
 
 
-def q_idle(frames=4, ms=200, wag=10, **rest):
+def q_idle(frames=4, ms=300, wag=10, **rest):
     out = []
     for i in range(frames):
         t = 2 * math.pi * i / frames
@@ -629,8 +635,12 @@ FOLLOW_CHAINS = {
     "bird": [["wingtip_n"], ["wingtip_f"], ["tail"]],
     "slime": [],
 }
-LOOPING = {"idle", "walk", "run", "float", "hop", "fly", "slither"}
+LOOPING = {"idle", "walk", "run", "float", "hop", "fly", "slither"}  # any family (packs add names)
+# Cyclic animations per family: a name can loop for one family and be one-shot for another.
+LOOPING_BY_FAMILY = {"humanoid": {"idle", "walk", "float"}, "quadruped": {"idle", "walk", "run"},
+                     "slime": {"idle", "hop"}, "serpent": {"idle", "slither"}, "bird": {"idle", "hop", "fly"}}
 SPECIAL_KEYS = {"flash", "plant", "dissolve", "smear"}
+LINEAR_KEYS = {"dx", "dy", "stretch"}  # not angles
 SWING = ("sh_", "el_", "head", "neck", "tail", "wing", "jaw", "seg")
 BEND = ("knee_", "ankle_", "stretch")
 
@@ -691,7 +701,53 @@ def personalize(frames, family, motion, loop=False):
             elif k.startswith(SWING):
                 gain *= 0.5 + e
             offset, quirk = quirks.get(k, (0.0, 1.0))
-            new[k] = base + (pose[k] - base) * gain * quirk + offset
+            delta = pose[k] - base
+            if k not in LINEAR_KEYS:  # angles: scale the short way round, so +200 and -160 behave alike
+                delta = (delta + 180) % 360 - 180
+            new[k] = base + delta * gain * quirk + offset
         jitter = 1 + rng.uniform(-0.08, 0.08) if rng else 1
         out.append((new, max(20, round(ms * tempo * jitter))))
     return out
+
+
+# ---------- preset packs ----------
+# Public helpers for pack authors (stable names; the underscored originals stay for this file).
+lerp, timed, fade, over_the_top = _lerp, _timed, _fade, _over_the_top
+
+
+def pose(family, **changes):
+    """A family's rest pose with some joints changed."""
+    return dict(REST_POSES[family], **changes)
+
+
+def load_packs(folder=None):
+    """Import every scripts/preset_packs/*.py. A pack defines ANIMS = {family: {name: function}} and
+    may define LOOPING = {names of cyclic animations}. Names must not collide with existing presets."""
+    import importlib.util
+    import sys
+    from pathlib import Path
+    folder = Path(folder or Path(__file__).resolve().parent / "preset_packs")
+    loaded = []
+    for path in sorted(folder.glob("*.py")):
+        if path.name.startswith("_"):
+            continue
+        spec = importlib.util.spec_from_file_location(f"preset_packs.{path.stem}", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        looping = getattr(module, "LOOPING", set())
+        for family, anims in getattr(module, "ANIMS", {}).items():
+            if family not in ANIMS:
+                raise ValueError(f"preset pack {path.name}: unknown family {family!r}")
+            clash = set(anims) & set(ANIMS[family])
+            if clash:
+                raise ValueError(f"preset pack {path.name}: {family} presets {sorted(clash)} already exist")
+            ANIMS[family].update(anims)
+            # A pack's LOOPING names count only for the families where that pack defines them.
+            LOOPING_BY_FAMILY[family].update(n for n in looping if n in anims)
+        LOOPING.update(looping)
+        loaded.append(path.stem)
+    return loaded
+
+
+PACKS = load_packs()

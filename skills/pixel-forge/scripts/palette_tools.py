@@ -8,6 +8,9 @@ and lose saturation, the way pixel artists build ramps by hand instead of only d
 """
 import argparse
 import colorsys
+import json
+from functools import lru_cache
+from pathlib import Path
 
 COOL = 250.0  # hue that shadows lean toward (degrees)
 WARM = 55.0   # hue that highlights lean toward
@@ -60,11 +63,31 @@ def _check(where, value):
         raise ValueError(f"{where}: expected a base color #RRGGBB")
 
 
-def expand_materials(materials):
-    """Materials may be a list of colors or {"base": "#RRGGBB", "tones": 3|4, "shift": degrees}."""
+@lru_cache(maxsize=None)
+def kits():
+    """Bundled palette kits from palettes.json: {slug: {name, author, url, terms, colors, outline, ramps}}."""
+    return json.loads((Path(__file__).resolve().parent / "palettes.json").read_text(encoding="utf-8"))["kits"]
+
+
+def kit(slug):
+    if slug not in kits():
+        raise ValueError(f"palette_kit: unknown kit {slug!r}; bundled kits are {sorted(kits())}")
+    return kits()[slug]
+
+
+def expand_materials(materials, kit_slug=None):
+    """Materials may be a list of colors, {"base": "#RRGGBB", "tones": 3|4, "shift": degrees}, or
+    {"kit": "<ramp name>"} taking a named ramp from the spec's palette_kit."""
     out = {}
     for name, value in materials.items():
-        if isinstance(value, dict):
+        if isinstance(value, dict) and "kit" in value:
+            if not kit_slug:
+                raise ValueError(f"materials.{name}: a kit ramp needs a palette_kit in the spec")
+            ramps = kit(kit_slug)["ramps"]
+            if value["kit"] not in ramps or set(value) != {"kit"}:
+                raise ValueError(f"materials.{name}.kit: choose from {sorted(ramps)} of {kit_slug}")
+            out[name] = ramps[value["kit"]]
+        elif isinstance(value, dict):
             _check(f"materials.{name}.base", value.get("base"))
             if set(value) - {"base", "tones", "shift"} or value.get("tones", 4) not in (3, 4):
                 raise ValueError(f"materials.{name}: expected {{\"base\": \"#RRGGBB\", \"tones\": 3 or 4, \"shift\": degrees}}")

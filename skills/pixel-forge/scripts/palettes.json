@@ -1,0 +1,602 @@
+{
+ "_note": "Bundled kits: colors from each palette's Lospec .hex file; ramps (dark -> light) are our grouping. See CREDITS.md. 'linked' palettes have no explicit terms and are referenced by link only.",
+ "kits": {
+  "pico-8": {
+   "name": "PICO-8",
+   "author": "Lexaloffle Games",
+   "url": "https://lospec.com/palette-list/pico-8",
+   "terms": "CC0 (Lexaloffle FAQ: the palette is available under a CC-0 license)",
+   "colors": [
+    "#000000",
+    "#1D2B53",
+    "#7E2553",
+    "#008751",
+    "#AB5236",
+    "#5F574F",
+    "#C2C3C7",
+    "#FFF1E8",
+    "#FF004D",
+    "#FFA300",
+    "#FFEC27",
+    "#00E436",
+    "#29ADFF",
+    "#83769C",
+    "#FF77A8",
+    "#FFCCAA"
+   ],
+   "outline": "#000000",
+   "ramps": {
+    "skin": [
+     "#AB5236",
+     "#FFCCAA",
+     "#FFF1E8"
+    ],
+    "wood": [
+     "#5F574F",
+     "#AB5236",
+     "#FFA300"
+    ],
+    "foliage": [
+     "#1D2B53",
+     "#008751",
+     "#00E436"
+    ],
+    "water": [
+     "#1D2B53",
+     "#29ADFF",
+     "#C2C3C7"
+    ],
+    "metal": [
+     "#5F574F",
+     "#C2C3C7",
+     "#FFF1E8"
+    ],
+    "red": [
+     "#7E2553",
+     "#FF004D",
+     "#FF77A8"
+    ],
+    "fire": [
+     "#AB5236",
+     "#FFA300",
+     "#FFEC27"
+    ],
+    "purple": [
+     "#1D2B53",
+     "#83769C",
+     "#FF77A8"
+    ]
+   }
+  },
+  "dawnbringer-16": {
+   "name": "DawnBringer 16",
+   "author": "DawnBringer (Richard Fhager)",
+   "url": "https://lospec.com/palette-list/dawnbringer-16",
+   "terms": "author: \"feel free to use this palette\" / \"it's totally free\" (PixelJoint thread 12795)",
+   "colors": [
+    "#140C1C",
+    "#442434",
+    "#30346D",
+    "#4E4A4E",
+    "#854C30",
+    "#346524",
+    "#D04648",
+    "#757161",
+    "#597DCE",
+    "#D27D2C",
+    "#8595A1",
+    "#6DAA2C",
+    "#D2AA99",
+    "#6DC2CA",
+    "#DAD45E",
+    "#DEEED6"
+   ],
+   "outline": "#140C1C",
+   "ramps": {
+    "skin": [
+     "#854C30",
+     "#D2AA99",
+     "#DEEED6"
+    ],
+    "wood": [
+     "#442434",
+     "#854C30",
+     "#D27D2C",
+     "#DAD45E"
+    ],
+    "foliage": [
+     "#346524",
+     "#6DAA2C",
+     "#DAD45E"
+    ],
+    "water": [
+     "#30346D",
+     "#597DCE",
+     "#6DC2CA",
+     "#DEEED6"
+    ],
+    "metal": [
+     "#4E4A4E",
+     "#757161",
+     "#8595A1",
+     "#DEEED6"
+    ],
+    "red": [
+     "#442434",
+     "#D04648",
+     "#D27D2C"
+    ],
+    "fire": [
+     "#854C30",
+     "#D27D2C",
+     "#DAD45E"
+    ],
+    "purple": [
+     "#140C1C",
+     "#442434",
+     "#30346D",
+     "#597DCE"
+    ]
+   }
+  },
+  "aap-64": {
+   "name": "AAP-64",
+   "author": "Adigun A. Polack",
+   "url": "https://lospec.com/palette-list/aap-64",
+   "terms": "author: \"you are MOST FREELY WELCOME to use it\" (PixelJoint 119466); also bundled in Aseprite",
+   "colors": [
+    "#060608",
+    "#141013",
+    "#3B1725",
+    "#73172D",
+    "#B4202A",
+    "#DF3E23",
+    "#FA6A0A",
+    "#F9A31B",
+    "#FFD541",
+    "#FFFC40",
+    "#D6F264",
+    "#9CDB43",
+    "#59C135",
+    "#14A02E",
+    "#1A7A3E",
+    "#24523B",
+    "#122020",
+    "#143464",
+    "#285CC4",
+    "#249FDE",
+    "#20D6C7",
+    "#A6FCDB",
+    "#FFFFFF",
+    "#FEF3C0",
+    "#FAD6B8",
+    "#F5A097",
+    "#E86A73",
+    "#BC4A9B",
+    "#793A80",
+    "#403353",
+    "#242234",
+    "#221C1A",
+    "#322B28",
+    "#71413B",
+    "#BB7547",
+    "#DBA463",
+    "#F4D29C",
+    "#DAE0EA",
+    "#B3B9D1",
+    "#8B93AF",
+    "#6D758D",
+    "#4A5462",
+    "#333941",
+    "#422433",
+    "#5B3138",
+    "#8E5252",
+    "#BA756A",
+    "#E9B5A3",
+    "#E3E6FF",
+    "#B9BFFB",
+    "#849BE4",
+    "#588DBE",
+    "#477D85",
+    "#23674E",
+    "#328464",
+    "#5DAF8D",
+    "#92DCBA",
+    "#CDF7E2",
+    "#E4D2AA",
+    "#C7B08B",
+    "#A08662",
+    "#796755",
+    "#5A4E44",
+    "#423934"
+   ],
+   "outline": "#060608",
+   "ramps": {
+    "skin": [
+     "#5B3138",
+     "#8E5252",
+     "#BA756A",
+     "#E9B5A3"
+    ],
+    "wood": [
+     "#322B28",
+     "#71413B",
+     "#BB7547",
+     "#DBA463"
+    ],
+    "foliage": [
+     "#24523B",
+     "#1A7A3E",
+     "#59C135",
+     "#9CDB43"
+    ],
+    "water": [
+     "#143464",
+     "#285CC4",
+     "#249FDE",
+     "#A6FCDB"
+    ],
+    "metal": [
+     "#4A5462",
+     "#6D758D",
+     "#8B93AF",
+     "#DAE0EA"
+    ],
+    "red": [
+     "#3B1725",
+     "#73172D",
+     "#B4202A",
+     "#DF3E23"
+    ],
+    "fire": [
+     "#DF3E23",
+     "#FA6A0A",
+     "#F9A31B",
+     "#FFD541"
+    ],
+    "purple": [
+     "#403353",
+     "#793A80",
+     "#BC4A9B",
+     "#E86A73"
+    ],
+    "stone": [
+     "#5A4E44",
+     "#796755",
+     "#A08662",
+     "#C7B08B"
+    ],
+    "teal": [
+     "#23674E",
+     "#328464",
+     "#5DAF8D",
+     "#92DCBA"
+    ]
+   }
+  },
+  "sweetie-16": {
+   "name": "Sweetie 16",
+   "author": "GrafxKid",
+   "url": "https://lospec.com/palette-list/sweetie-16",
+   "terms": "no explicit terms; default palette of the MIT-licensed TIC-80 fantasy console",
+   "colors": [
+    "#1A1C2C",
+    "#5D275D",
+    "#B13E53",
+    "#EF7D57",
+    "#FFCD75",
+    "#A7F070",
+    "#38B764",
+    "#257179",
+    "#29366F",
+    "#3B5DC9",
+    "#41A6F6",
+    "#73EFF7",
+    "#F4F4F4",
+    "#94B0C2",
+    "#566C86",
+    "#333C57"
+   ],
+   "outline": "#1A1C2C",
+   "ramps": {
+    "skin": [
+     "#B13E53",
+     "#EF7D57",
+     "#FFCD75"
+    ],
+    "wood": [
+     "#5D275D",
+     "#B13E53",
+     "#EF7D57"
+    ],
+    "foliage": [
+     "#257179",
+     "#38B764",
+     "#A7F070"
+    ],
+    "water": [
+     "#29366F",
+     "#3B5DC9",
+     "#41A6F6",
+     "#73EFF7"
+    ],
+    "metal": [
+     "#333C57",
+     "#566C86",
+     "#94B0C2",
+     "#F4F4F4"
+    ],
+    "red": [
+     "#5D275D",
+     "#B13E53",
+     "#EF7D57",
+     "#FFCD75"
+    ],
+    "fire": [
+     "#B13E53",
+     "#EF7D57",
+     "#FFCD75"
+    ],
+    "purple": [
+     "#1A1C2C",
+     "#5D275D",
+     "#B13E53"
+    ]
+   }
+  },
+  "endesga-32": {
+   "name": "Endesga 32",
+   "author": "ENDESGA",
+   "url": "https://lospec.com/palette-list/endesga-32",
+   "terms": "no explicit terms; bundled in Aseprite as \"Palettes contributed by ENDESGA Studios\"",
+   "colors": [
+    "#BE4A2F",
+    "#D77643",
+    "#EAD4AA",
+    "#E4A672",
+    "#B86F50",
+    "#733E39",
+    "#3E2731",
+    "#A22633",
+    "#E43B44",
+    "#F77622",
+    "#FEAE34",
+    "#FEE761",
+    "#63C74D",
+    "#3E8948",
+    "#265C42",
+    "#193C3E",
+    "#124E89",
+    "#0099DB",
+    "#2CE8F5",
+    "#FFFFFF",
+    "#C0CBDC",
+    "#8B9BB4",
+    "#5A6988",
+    "#3A4466",
+    "#262B44",
+    "#181425",
+    "#FF0044",
+    "#68386C",
+    "#B55088",
+    "#F6757A",
+    "#E8B796",
+    "#C28569"
+   ],
+   "outline": "#181425",
+   "ramps": {
+    "skin": [
+     "#733E39",
+     "#B86F50",
+     "#E4A672",
+     "#EAD4AA"
+    ],
+    "wood": [
+     "#3E2731",
+     "#733E39",
+     "#B86F50",
+     "#E4A672"
+    ],
+    "foliage": [
+     "#193C3E",
+     "#265C42",
+     "#3E8948",
+     "#63C74D"
+    ],
+    "water": [
+     "#262B44",
+     "#124E89",
+     "#0099DB",
+     "#2CE8F5"
+    ],
+    "metal": [
+     "#3A4466",
+     "#5A6988",
+     "#8B9BB4",
+     "#C0CBDC"
+    ],
+    "red": [
+     "#3E2731",
+     "#A22633",
+     "#E43B44",
+     "#F6757A"
+    ],
+    "fire": [
+     "#BE4A2F",
+     "#F77622",
+     "#FEAE34",
+     "#FEE761"
+    ],
+    "purple": [
+     "#262B44",
+     "#68386C",
+     "#B55088",
+     "#F6757A"
+    ]
+   }
+  },
+  "dawnbringer-32": {
+   "name": "DawnBringer 32",
+   "author": "DawnBringer (Richard Fhager)",
+   "url": "https://lospec.com/palette-list/dawnbringer-32",
+   "terms": "author: \"Either use it intact or as a starting point\" (PixelJoint 16247); bundled in Aseprite",
+   "colors": [
+    "#000000",
+    "#222034",
+    "#45283C",
+    "#663931",
+    "#8F563B",
+    "#DF7126",
+    "#D9A066",
+    "#EEC39A",
+    "#FBF236",
+    "#99E550",
+    "#6ABE30",
+    "#37946E",
+    "#4B692F",
+    "#524B24",
+    "#323C39",
+    "#3F3F74",
+    "#306082",
+    "#5B6EE1",
+    "#639BFF",
+    "#5FCDE4",
+    "#CBDBFC",
+    "#FFFFFF",
+    "#9BADB7",
+    "#847E87",
+    "#696A6A",
+    "#595652",
+    "#76428A",
+    "#AC3232",
+    "#D95763",
+    "#D77BBA",
+    "#8F974A",
+    "#8A6F30"
+   ],
+   "outline": "#222034",
+   "ramps": {
+    "skin": [
+     "#663931",
+     "#8F563B",
+     "#D9A066",
+     "#EEC39A"
+    ],
+    "wood": [
+     "#45283C",
+     "#663931",
+     "#8F563B",
+     "#D9A066"
+    ],
+    "foliage": [
+     "#323C39",
+     "#4B692F",
+     "#6ABE30",
+     "#99E550"
+    ],
+    "water": [
+     "#3F3F74",
+     "#306082",
+     "#639BFF",
+     "#CBDBFC"
+    ],
+    "metal": [
+     "#595652",
+     "#696A6A",
+     "#847E87",
+     "#9BADB7"
+    ],
+    "red": [
+     "#45283C",
+     "#AC3232",
+     "#D95763",
+     "#D77BBA"
+    ],
+    "fire": [
+     "#AC3232",
+     "#DF7126",
+     "#D9A066",
+     "#FBF236"
+    ],
+    "purple": [
+     "#222034",
+     "#3F3F74",
+     "#76428A",
+     "#D77BBA"
+    ]
+   }
+  }
+ },
+ "linked": [
+  {
+   "name": "Resurrect 64",
+   "author": "Kerrie Lake",
+   "url": "https://lospec.com/palette-list/resurrect-64"
+  },
+  {
+   "name": "Apollo",
+   "author": "AdamCYounis",
+   "url": "https://lospec.com/palette-list/apollo"
+  },
+  {
+   "name": "Endesga 64",
+   "author": "ENDESGA",
+   "url": "https://lospec.com/palette-list/endesga-64"
+  },
+  {
+   "name": "Lospec500",
+   "author": "Lospec community",
+   "url": "https://lospec.com/palette-list/lospec500"
+  },
+  {
+   "name": "CC-29",
+   "author": "Alpha6",
+   "url": "https://lospec.com/palette-list/cc-29"
+  },
+  {
+   "name": "Pear36",
+   "author": "PineTreePizza",
+   "url": "https://lospec.com/palette-list/pear36"
+  },
+  {
+   "name": "SLSO8",
+   "author": "Luis Miguel Maldonado",
+   "url": "https://lospec.com/palette-list/slso8"
+  },
+  {
+   "name": "Oil 6",
+   "author": "GrafxKid",
+   "url": "https://lospec.com/palette-list/oil-6"
+  },
+  {
+   "name": "Fantasy 24",
+   "author": "Gabriel C.",
+   "url": "https://lospec.com/palette-list/fantasy-24"
+  },
+  {
+   "name": "Steam Lords",
+   "author": "Slynyrd",
+   "url": "https://lospec.com/palette-list/steam-lords"
+  },
+  {
+   "name": "Vinik24",
+   "author": "Vinik",
+   "url": "https://lospec.com/palette-list/vinik24"
+  },
+  {
+   "name": "Journey",
+   "author": "PineTreePizza",
+   "url": "https://lospec.com/palette-list/journey"
+  },
+  {
+   "name": "Twilight 5",
+   "author": "Star",
+   "url": "https://lospec.com/palette-list/twilight-5"
+  },
+  {
+   "name": "NA16",
+   "author": "Nauris",
+   "url": "https://lospec.com/palette-list/na16"
+  }
+ ]
+}

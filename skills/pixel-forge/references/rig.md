@@ -46,7 +46,7 @@ This example only shows the syntax; it is not an art template.
 
 - `size`: the canvas `[w, h]`, 8–256. Leave room for reach, because a weapon swing or a tail needs space.
 - `rig`: one of `humanoid`, `chibi`, `quadruped`, `bird`, `serpent` or `slime`.
-- `build`: a body type for `humanoid`, `chibi` and `quadruped`: `bulky`, `slim`, `tall` or `short`. It scales bone lengths by group (legs, arms, body, head) and the thickness of every part, including the spec's own extras. Leave it out for the rig's standard body.
+- `build`: a body type. `humanoid` and `chibi` take `bulky`, `slim`, `tall`, `short`, `child`, `elderly` or `brute`; `elderly` and `brute` also bring their own posture, added to every frame. `quadruped` takes `bulky`, `slim`, `tall` or `short`. It scales bone lengths by group (legs, arms, body, head) and the thickness of every part, including the spec's own extras. Leave it out for the rig's standard body.
 - `proportions`: overrides bone lengths by name, applied after `build`. `scale` multiplies them all.
 - `motion`: the character's personality, applied to every animation (an anim entry's own `motion` overrides keys). See *Motion personality*.
 - `style`: render style for vector parts. See *Style*.
@@ -125,6 +125,8 @@ A material is a ramp of 3–4 colors, dark to light. It can be given directly or
 "materials": {"skin": {"base": "#4F7A34"}, "cloth": {"base": "#9C2A3A", "tones": 3, "shift": 30}}
 ```
 
+A bundled palette kit can supply the ramps instead: set `"palette_kit": "endesga-32"` and give materials as `{"kit": "skin"}`. Each kit has named ramps such as `skin`, `wood`, `foliage`, `water`, `metal`, `red`, `fire` and `purple` (`aap-64` adds `stone` and `teal`), plus a suggested `outline`. `"style": {"snap": true}` maps every pixel to the nearest kit color, so a whole set stays inside one palette. Kits, colors and credits are listed in `scripts/palettes.json` and `CREDITS.md`.
+
 Generated ramps are hue shifted: the shadows lean toward blue-violet, and the highlights lean toward warm yellow and lose saturation. Prefer this over picking shades by hand. `shift` (in degrees, default 24) sets how strong the lean is. For cutout characters, `"palette_gen": {"1234": "#4F7A34"}` fills palette symbols 1–4 with a generated ramp and adds it to `ramps`. `palette_tools.py BASE` prints a ramp for hand authoring.
 
 ## Motion personality
@@ -183,6 +185,24 @@ A vector part or extra can carry `"texture"`: `fur`, `scales`, `cloth`, `metal` 
 - `ground`: grounded frames on different rows.
 
 These are warnings to judge against the intent. Countershading, such as a dark back and a light belly, legitimately triggers `lighting`. Run lint before delivering and fix what is a real problem.
+
+## Preset packs
+
+Beyond the built-in presets above, the packs in `scripts/preset_packs/` add these (parameters and timing are in each function's docstring; cyclic ones loop):
+
+- **humanoid** (`humanoid_combat`, `humanoid_movement`, `humanoid_actions`, `slime_float`):
+  - combat: `heavy_attack`, `thrust`, `combo`, `block`, `parry`, `kick`, `shield_bash`;
+  - movement: `run`, `jump`, `jump_rise`, `jump_fall`, `land`, `crouch`, `crouch_walk`, `sneak`, `dash`, `climb`, `push`;
+  - actions: `cast`, `cast_loop`, `shoot_bow`, `throw`, `wave`, `cheer`, `sit`, `sit_idle`, `sleep`, `sleep_idle`, `stunned`, `knockback`, `taunt`;
+  - floating creatures: `float_attack`, `vanish`, `appear`, `haunt`.
+- **quadruped:** `trot`, `stalk`, `sniff`, `howl`, `sit`, `sit_idle`, `lie_down`, `sleep`, `bite_combo`, `charge`, `rear_up`, `shake`, `leap`.
+- **bird:** `glide`, `takeoff`, `land`, `dive`, `peck_ground`, `screech`.
+- **serpent:** `coil`, `rear_up`, `spit`, `hiss`, `sidewind`.
+- **slime:** `bounce_slam`, `wobble`, `spit`, `split`, `melt_in`, `rise`, `crawl`.
+
+Moves with large `dx` (`knockback`, `dash`, `thrust`, `charge`) and tall or wide poses (`jump`, `rear_up`, lying poses) need room in the canvas; shift the animation with its own `pose_offset` `dx` when a warning reports an edge. Spawn projectiles at the release frame named in the preset's docstring (`spit`, `throw`, `shoot_bow`, `cast`). Personality scales angles the short way round, so write raised limbs and wings close to their rest angle (for example a bird wing at −160 rather than +200).
+
+To add presets, write a pack following `scripts/preset_packs/README.md`.
 
 ## Effects and special pose keys
 
