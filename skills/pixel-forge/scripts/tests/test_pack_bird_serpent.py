@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 
+from _fixtures import load_example
+
 from PIL import Image
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -25,7 +27,7 @@ def bbox(path):
 
 class BirdSerpentPackTests(unittest.TestCase):
     def render(self, example, anims):
-        spec = json.loads((EXAMPLES / example).read_text(encoding="utf-8"))
+        spec = load_example(example)
         spec["anims"] = [{"preset": name} for name in anims]
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)

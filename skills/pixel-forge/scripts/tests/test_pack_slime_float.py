@@ -6,6 +6,8 @@ import sys
 import tempfile
 import unittest
 
+from _fixtures import load_example
+
 from PIL import Image
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -22,7 +24,7 @@ def opened(path):
 
 
 def render(example, presets):
-    spec = json.loads((EXAMPLES / example).read_text(encoding="utf-8"))
+    spec = load_example(example)
     spec["anims"] = [{"preset": p} for p in presets]
     temp = Path(tempfile.mkdtemp())
     source = temp / "spec.json"
