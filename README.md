@@ -29,6 +29,12 @@ These four orcs come from one spec. Each one changes only its `build`, `motion` 
 
 <img src="docs/images/variety.gif" alt="Four orc variants walking: slim scout, bulky brute, tall warlord, short grunt" width="100%">
 
+### Polish
+
+Left of each pair: plain shading. Right: hue-shifted color ramps, `style.polish` (clean-up, manual anti-aliasing, ambient occlusion, cast shadows, rim light, slash smear), material textures and follow-through.
+
+<img src="docs/images/polish.gif" alt="Knight and orc attacks before and after polish" width="100%">
+
 ### Heroes
 
 <img src="docs/images/heroes.gif" alt="Knight idle, walk and attack; mage idle and walk" width="100%">
@@ -45,6 +51,7 @@ These four orcs come from one spec. Each one changes only its `build`, `motion` 
 |---|---|
 | **Static assets** | Items, icons and tiles drawn as palette-indexed layers (rows of symbols plus polygons, rects, lines and pixels). Each one is rendered to a native transparent PNG, an enlarged preview and a coordinate grid, and stays patchable by layer. |
 | **Rigged characters** | `humanoid`, `chibi`, `quadruped`, `bird`, `serpent` and `slime` skeletons, posed by animation presets: idle, walk, run, hop, fly, slither, float, attack, hurt and die. Effects include squash and stretch, a hit flash, a dither dissolve and lying poses that rest on the ground line. |
+| **Polish** | Hue-shifted color ramps generated from one base color; clean-up, manual anti-aliasing, ambient occlusion, cast shadows, rim light and slash smears; fur, scales, cloth and metal textures; follow-through. `lint.py` reports stray pixels, muddy tones, pillow shading, thin silhouettes, clipping and ground drift. |
 | **Variety** | Body types (`bulky`, `slim`, `tall`, `short`), a motion personality (`weight`, `energy`, `exaggeration`, `seed`) and render styles (outline, number of shades, dither, light direction). |
 | **Two quality paths** | **Vector parts** (shapes on bones, auto-shaded) are quick for prototypes. **Cutout layers** are pixel regions painted once in the rest pose and rotated RotSprite-style, for final art. |
 | **Game-ready output** | Each animation is exported as a sprite sheet, plus `animation.json` with frame rects, timings and a pivot per frame, a preview GIF and a contact sheet. |
@@ -110,6 +117,9 @@ skills/pixel-forge/          the skill: SKILL.md, references, scripts and tests
   scripts/rig2d.py           rigged characters and animation export
   scripts/rig_presets.py     rigs and animation presets
   scripts/cutout_tools.py    draw ops and splitting cutout regions onto bones
+  scripts/palette_tools.py   hue-shifted color ramps
+  scripts/polish.py          clean-up, anti-aliasing, lighting passes, textures, smears
+  scripts/lint.py            aesthetic lint for rendered sprites
 examples/characters/          character specs: knight, mage, sorceress, orc, slime, serpent,
                              raven, wolf and ghost (cutout), wolf-vector and ghost-vector
 demo/items/                  item sources (editable JSON) and their build script

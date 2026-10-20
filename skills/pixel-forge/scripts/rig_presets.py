@@ -240,7 +240,8 @@ def attack(ms=1.0, **rest):
     """Horizontal slash with the near hand. ms scales all timings."""
     guard = _pose(**rest, sh_n=15, el_n=50, grip_n=100, hip_n=12, hip_f=-12, knee_n=10, knee_f=10)
     windup = _pose(**rest, sh_n=-55, el_n=30, grip_n=235, lean=-6, hip_n=16, knee_n=14, hip_f=-18, knee_f=14, sh_f=20, el_f=30)
-    strike = _pose(**rest, sh_n=80, el_n=-10, grip_n=30, lean=14, hip_n=32, knee_n=28, hip_f=-24, knee_f=4, sh_f=-30)
+    strike = _pose(**rest, sh_n=80, el_n=-10, grip_n=30, lean=14, hip_n=32, knee_n=28, hip_f=-24, knee_f=4, sh_f=-30,
+                   smear="weapon_n")
     follow = _pose(**rest, sh_n=40, el_n=-5, grip_n=30, lean=16, hip_n=32, knee_n=30, hip_f=-24, knee_f=4, sh_f=-35)
     keys = [(guard, 120), (_lerp(guard, windup, 0.5), 70), (windup, 160), (strike, 60),
             (follow, 120), (_lerp(follow, guard, 0.5), 100), (guard, 140)]
@@ -364,7 +365,7 @@ def q_attack(ms=1.0, **rest):
                   hip_fn=-28, knee_fn=48, ankle_fn=-10, hip_ff=-24, knee_ff=44, ankle_ff=-10, dx=-1)
     launch = dict(base, flex=-10, pitch=-8, neck=68, head=0, tail=-5, tail2=-6, tail3=-8,
                   hip_bn=-35, knee_bn=-12, ankle_bn=14, hip_bf=-28, knee_bf=-16, ankle_bf=16,
-                  hip_fn=62, knee_fn=22, ankle_fn=0, hip_ff=55, knee_ff=26, ankle_ff=0, dx=1, dy=-2)
+                  hip_fn=62, knee_fn=22, ankle_fn=0, hip_ff=55, knee_ff=26, ankle_ff=0, dx=1, dy=-2, smear="head")
     bite = dict(base, flex=4, pitch=10, neck=78, head=28, tail=-14,
                 hip_bn=8, knee_bn=-48, ankle_bn=36, hip_bf=2, knee_bf=-44, ankle_bf=34,
                 hip_fn=32, knee_fn=4, ankle_fn=0, hip_ff=26, knee_ff=8, ankle_ff=0, dx=2)
@@ -526,7 +527,7 @@ def r_attack(ms=1.0, **rest):
     """Coil back, strike forward with the jaw open, bite, return."""
     b = dict(RREST, **rest)
     coil = dict(b, neck=-15, head=-10, seg1=30, seg2=-20, dx=-2)
-    strike = dict(b, neck=68, head=6, jaw=32, dx=4, seg1=-4)
+    strike = dict(b, neck=68, head=6, jaw=32, dx=4, seg1=-4, smear="head")
     bite = dict(b, neck=66, head=14, jaw=4, dx=4, seg1=-2)
     return _timed([(coil, 140), (strike, 70), (bite, 120), (_lerp(bite, b, 0.5), 110), (b, 120)], ms)
 
@@ -582,7 +583,8 @@ def b_attack(ms=1.0, **rest):
     """Rear up with the wings raised, then peck down and forward."""
     b = dict(BREST, **rest)
     rear = dict(b, body=28, neck=5, head=-12, wing_n=150, wing_f=145, wingtip_n=-20, wingtip_f=-20, tail=-4)
-    peck = dict(b, body=-14, neck=58, head=28, dx=3, wing_n=125, wing_f=120, wingtip_n=10, wingtip_f=10, tail=24)
+    peck = dict(b, body=-14, neck=58, head=28, dx=3, wing_n=125, wing_f=120, wingtip_n=10, wingtip_f=10, tail=24,
+                smear="head")
     return _timed([(rear, 130), (peck, 70), (dict(peck, head=34), 110), (_lerp(peck, _over_the_top(b), 0.5), 100), (b, 120)], ms)
 
 
@@ -618,13 +620,41 @@ def anim(family, name, **params):
 
 # ---------- motion personality ----------
 
-MOTION_DEFAULTS = {"weight": 0.5, "energy": 0.5, "exaggeration": 1.0}
-SPECIAL_KEYS = {"flash", "plant", "dissolve"}
+MOTION_DEFAULTS = {"weight": 0.5, "energy": 0.5, "exaggeration": 1.0, "follow": 0.0}
+# Joints that trail the ones before them (follow-through), from the root of each chain outward.
+FOLLOW_CHAINS = {
+    "humanoid": [["el_n"], ["el_f"], ["knee_n"], ["knee_f"]],
+    "quadruped": [["tail", "tail2", "tail3"]],
+    "serpent": [[f"seg{i}" for i in range(3, 9)]],
+    "bird": [["wingtip_n"], ["wingtip_f"], ["tail"]],
+    "slime": [],
+}
+LOOPING = {"idle", "walk", "run", "float", "hop", "fly", "slither"}
+SPECIAL_KEYS = {"flash", "plant", "dissolve", "smear"}
 SWING = ("sh_", "el_", "head", "neck", "tail", "wing", "jaw", "seg")
 BEND = ("knee_", "ankle_", "stretch")
 
 
-def personalize(frames, family, motion):
+def follow_through(frames, family, amount, loop):
+    """Each chain joint takes part of its value from the previous frame: the further out along the
+    chain, the more it lags. Loops wrap around; one-shot animations hold the first frame."""
+    if amount <= 0 or len(frames) < 2:
+        return frames
+    poses = [p for p, _ in frames]
+    out = [dict(p) for p in poses]
+    for chain in FOLLOW_CHAINS.get(family, []):
+        for depth, key in enumerate(chain, 1):
+            lag = min(0.85, amount * depth / len(chain) if len(chain) > 1 else amount)
+            for i, pose in enumerate(poses):
+                if key not in pose:
+                    continue
+                before = poses[i - 1] if (i > 0 or loop) else pose
+                if key in before:
+                    out[i][key] = pose[key] * (1 - lag) + before[key] * lag
+    return [(p, ms) for p, (_, ms) in zip(out, frames)]
+
+
+def personalize(frames, family, motion, loop=False):
     """Give a preset its character. At the defaults (weight 0.5, energy 0.5, exaggeration 1, no seed)
     every factor is 1 and the frames come back unchanged.
 
@@ -633,8 +663,10 @@ def personalize(frames, family, motion):
     exaggeration  scales every joint's swing away from the rest pose (0.5 subtle, 1.5 cartoony)
     seed          a fixed quirk per joint (small angle offset and gain) and uneven frame timing,
                   so two creatures of one kind never move identically; the same seed repeats exactly
+    follow        0..1 follow-through: forearms, tails, wingtips and snake tails trail behind
     """
     m = dict(MOTION_DEFAULTS, **(motion or {}))
+    frames = follow_through(frames, family, m["follow"], loop)
     w, e, x, seed = m["weight"], m["energy"], m["exaggeration"], m.get("seed")
     if (w, e, x) == (0.5, 0.5, 1.0) and seed is None:
         return frames

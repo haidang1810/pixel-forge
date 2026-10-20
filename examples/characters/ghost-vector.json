@@ -306,5 +306,16 @@
    "wave": 24,
    "bob": 1
   }
- ]
+ ],
+ "style": {
+  "polish": {
+   "clean": true,
+   "aa": true,
+   "ao": true,
+   "rim": true
+  }
+ },
+ "motion": {
+  "follow": 0.6
+ }
 }

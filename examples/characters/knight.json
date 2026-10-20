@@ -1,47 +1,318 @@
 {
-  "name": "knight",
-  "size": [48, 48],
-  "rig": "humanoid",
-  "root_x": 0.36,
-  "outline": "#141D2B",
-  "materials": {
-    "body":  ["#29394E", "#4B627C", "#809BAB"],
-    "armor": ["#4B627C", "#809BAB", "#B9CED2", "#E6EEF0"],
-    "visor": ["#4B627C", "#809BAB", "#B9CED2"],
-    "legs":  ["#29394E", "#4B627C", "#809BAB"],
-    "boots": ["#3B2A26", "#5E4134", "#86604A"],
-    "cloth": ["#602D44", "#A54656", "#DD766C"],
-    "steel": ["#809BAB", "#B9CED2", "#F0F3DE", "#FFFFFF"],
-    "gold":  ["#937047", "#D9B773", "#FFF0B0"],
-    "plume": ["#602D44", "#A54656", "#DD766C"]
-  },
-  "parts": {
-    "head": {"mat": "armor"}, "torso": {"mat": "armor"},
-    "hand_n": {"mat": "armor"}, "hand_f": {"mat": "armor"},
-    "upper_n": {"mat": "armor"}, "fore_n": {"mat": "armor"}
-  },
-  "extras": [
-    {"name": "plume", "bone": "head", "shape": "poly", "mat": "plume", "z": 39, "group": "head",
-     "points": [[9, -1], [13, -4], [12, -9], [7, -8], [6, -3]]},
-    {"name": "visor", "bone": "head", "shape": "poly", "mat": "visor", "z": 41, "group": "head",
-     "points": [[3.6, 3.2], [8.4, 3.4], [8.4, 6], [3.6, 5.8]]},
-    {"name": "tabard", "bone": "spine", "shape": "poly", "mat": "cloth", "z": 55, "group": "tabard",
-     "points": [[2, -3.8], [2, 4.2], [-5.5, 4.6], [-6, 0.5], [-5.5, -4]]},
-    {"name": "belt", "bone": "spine", "shape": "poly", "mat": "gold", "z": 56, "group": "tabard",
-     "points": [[1.4, -3.9], [2.8, -3.6], [2.8, 4.1], [1.4, 4.4]]},
-    {"name": "pauldron_f", "bone": "upper_f", "shape": "ellipse", "at": [0.8, 0], "rx": 3, "ry": 2.5, "mat": "armor", "z": 13, "group": "arm_f", "far": true},
-    {"name": "pauldron_n", "bone": "upper_n", "shape": "ellipse", "at": [0.8, 0], "rx": 3.9, "ry": 3.1, "mat": "armor", "z": 64, "group": "pauldron"},
-    {"name": "grip", "bone": "weapon_n", "shape": "capsule", "span": [-1.5, 1.5], "r": 0.8, "mat": "boots", "z": 61, "group": "sword"},
-    {"name": "guard", "bone": "weapon_n", "shape": "poly", "mat": "gold", "z": 61, "group": "sword",
-     "points": [[1.4, -2.6], [2.6, -2.6], [2.6, 2.6], [1.4, 2.6]]},
-    {"name": "blade", "bone": "weapon_n", "shape": "capsule", "span": [2.6, 14], "r": [1.1, 0.6], "mat": "steel", "z": 61, "group": "sword"}
+ "name": "knight",
+ "size": [
+  48,
+  48
+ ],
+ "rig": "humanoid",
+ "root_x": 0.36,
+ "outline": "#141D2B",
+ "materials": {
+  "body": [
+   "#29394E",
+   "#4B627C",
+   "#809BAB"
   ],
-  "stamps": [
-    {"bone": "head", "at": [6.4, 2.6], "rows": ["ooooo"], "colors": {"o": "#141D2B"}}
+  "armor": [
+   "#4B627C",
+   "#809BAB",
+   "#B9CED2",
+   "#E6EEF0"
   ],
-  "anims": [
-    {"preset": "idle", "frames": 4},
-    {"preset": "walk", "frames": 8},
-    {"preset": "attack"}
+  "visor": [
+   "#4B627C",
+   "#809BAB",
+   "#B9CED2"
+  ],
+  "legs": [
+   "#29394E",
+   "#4B627C",
+   "#809BAB"
+  ],
+  "boots": [
+   "#3B2A26",
+   "#5E4134",
+   "#86604A"
+  ],
+  "cloth": [
+   "#602D44",
+   "#A54656",
+   "#DD766C"
+  ],
+  "steel": [
+   "#809BAB",
+   "#B9CED2",
+   "#F0F3DE",
+   "#FFFFFF"
+  ],
+  "gold": [
+   "#937047",
+   "#D9B773",
+   "#FFF0B0"
+  ],
+  "plume": [
+   "#602D44",
+   "#A54656",
+   "#DD766C"
   ]
+ },
+ "parts": {
+  "head": {
+   "mat": "armor",
+   "texture": "metal"
+  },
+  "torso": {
+   "mat": "armor",
+   "texture": "metal"
+  },
+  "hand_n": {
+   "mat": "armor"
+  },
+  "hand_f": {
+   "mat": "armor"
+  },
+  "upper_n": {
+   "mat": "armor",
+   "texture": "metal"
+  },
+  "fore_n": {
+   "mat": "armor",
+   "texture": "metal"
+  }
+ },
+ "extras": [
+  {
+   "name": "plume",
+   "bone": "head",
+   "shape": "poly",
+   "mat": "plume",
+   "z": 39,
+   "group": "head",
+   "points": [
+    [
+     9,
+     -1
+    ],
+    [
+     13,
+     -4
+    ],
+    [
+     12,
+     -9
+    ],
+    [
+     7,
+     -8
+    ],
+    [
+     6,
+     -3
+    ]
+   ]
+  },
+  {
+   "name": "visor",
+   "bone": "head",
+   "shape": "poly",
+   "mat": "visor",
+   "z": 41,
+   "group": "head",
+   "points": [
+    [
+     3.6,
+     3.2
+    ],
+    [
+     8.4,
+     3.4
+    ],
+    [
+     8.4,
+     6
+    ],
+    [
+     3.6,
+     5.8
+    ]
+   ]
+  },
+  {
+   "name": "tabard",
+   "bone": "spine",
+   "shape": "poly",
+   "mat": "cloth",
+   "z": 55,
+   "group": "tabard",
+   "points": [
+    [
+     2,
+     -3.8
+    ],
+    [
+     2,
+     4.2
+    ],
+    [
+     -5.5,
+     4.6
+    ],
+    [
+     -6,
+     0.5
+    ],
+    [
+     -5.5,
+     -4
+    ]
+   ],
+   "texture": "cloth"
+  },
+  {
+   "name": "belt",
+   "bone": "spine",
+   "shape": "poly",
+   "mat": "gold",
+   "z": 56,
+   "group": "tabard",
+   "points": [
+    [
+     1.4,
+     -3.9
+    ],
+    [
+     2.8,
+     -3.6
+    ],
+    [
+     2.8,
+     4.1
+    ],
+    [
+     1.4,
+     4.4
+    ]
+   ]
+  },
+  {
+   "name": "pauldron_f",
+   "bone": "upper_f",
+   "shape": "ellipse",
+   "at": [
+    0.8,
+    0
+   ],
+   "rx": 3,
+   "ry": 2.5,
+   "mat": "armor",
+   "z": 13,
+   "group": "arm_f",
+   "far": true,
+   "texture": "metal"
+  },
+  {
+   "name": "pauldron_n",
+   "bone": "upper_n",
+   "shape": "ellipse",
+   "at": [
+    0.8,
+    0
+   ],
+   "rx": 3.9,
+   "ry": 3.1,
+   "mat": "armor",
+   "z": 64,
+   "group": "pauldron",
+   "texture": "metal"
+  },
+  {
+   "name": "grip",
+   "bone": "weapon_n",
+   "shape": "capsule",
+   "span": [
+    -1.5,
+    1.5
+   ],
+   "r": 0.8,
+   "mat": "boots",
+   "z": 61,
+   "group": "sword"
+  },
+  {
+   "name": "guard",
+   "bone": "weapon_n",
+   "shape": "poly",
+   "mat": "gold",
+   "z": 61,
+   "group": "sword",
+   "points": [
+    [
+     1.4,
+     -2.6
+    ],
+    [
+     2.6,
+     -2.6
+    ],
+    [
+     2.6,
+     2.6
+    ],
+    [
+     1.4,
+     2.6
+    ]
+   ]
+  },
+  {
+   "name": "blade",
+   "bone": "weapon_n",
+   "shape": "capsule",
+   "span": [
+    2.6,
+    14
+   ],
+   "r": [
+    1.1,
+    0.6
+   ],
+   "mat": "steel",
+   "z": 61,
+   "group": "sword"
+  }
+ ],
+ "stamps": [
+  {
+   "bone": "head",
+   "at": [
+    6.4,
+    2.6
+   ],
+   "rows": [
+    "ooooo"
+   ],
+   "colors": {
+    "o": "#141D2B"
+   }
+  }
+ ],
+ "anims": [
+  {
+   "preset": "idle",
+   "frames": 4
+  },
+  {
+   "preset": "walk",
+   "frames": 8
+  },
+  {
+   "preset": "attack"
+  }
+ ],
+ "style": {
+  "polish": true
+ },
+ "motion": {
+  "follow": 0.5
+ }
 }

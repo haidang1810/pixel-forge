@@ -560,5 +560,40 @@
    ]
   }
  ],
- "anims": [{"preset": "float", "frames": 8, "ms": 120}, {"preset": "float", "name": "fly", "frames": 8, "ms": 80, "lean": 18, "wave": 24, "bob": 1, "pose_offset": {"dy": -3}}, {"preset": "hurt", "style": "float"}, {"preset": "die", "style": "fade"}]
+ "anims": [
+  {
+   "preset": "float",
+   "frames": 8,
+   "ms": 120
+  },
+  {
+   "preset": "float",
+   "name": "fly",
+   "frames": 8,
+   "ms": 80,
+   "lean": 18,
+   "wave": 24,
+   "bob": 1,
+   "pose_offset": {
+    "dy": -3
+   }
+  },
+  {
+   "preset": "hurt",
+   "style": "float"
+  },
+  {
+   "preset": "die",
+   "style": "fade"
+  }
+ ],
+ "style": {
+  "polish": {
+   "aa": true,
+   "smear": true
+  }
+ },
+ "motion": {
+  "follow": 0.5
+ }
 }

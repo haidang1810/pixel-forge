@@ -17,6 +17,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 import cutout_tools
+import palette_tools
+import polish
 import rig_presets as presets
 
 HERE = Path(__file__).resolve().parent
@@ -400,10 +402,21 @@ def light_vector(style):
     return LIGHTS[light]
 
 
-def shade(mask, ramp, normal, style=None):
+def part_local(bone):
+    """Inverse of Bone.local: canvas point -> unscaled (u, v) on the bone, so textures ride along."""
+    nx, ny = -bone.dir[1], bone.dir[0]
+
+    def local(x, y):
+        rx, ry = x - bone.start[0], y - bone.start[1]
+        return ((rx * bone.dir[0] + ry * bone.dir[1]) / bone.scale, (rx * nx + ry * ny) * bone.scale)
+    return local
+
+
+def shade(mask, ramp, normal, style=None, texture=None, local=None):
     """Volume cel shading: each pixel's surface direction against one global light.
 
-    style: shades (2, 3 or 4 tones), dither (checker the boundary between two tones), light."""
+    style: shades (2, 3 or 4 tones), dither (checker the boundary between two tones), light.
+    texture: a polish.TEXTURES name, laid out in part-local coordinates from `local(x, y)`."""
     style = style or {}
     lx, ly = light_vector(style)
     shades = style.get("shades", 4)
@@ -425,6 +438,10 @@ def shade(mask, ramp, normal, style=None):
             low, high = tone(d - 0.12), tone(d + 0.12)
             if low != high:
                 level = high if (x + y) % 2 == 0 else low
+        if texture:
+            top = min(len(ramp), shades) - 1
+            u, v = local(x + 0.5, y + 0.5)
+            level = max(0, min(top, level + polish.texture_offset(texture, round(u), round(v), level, top)))
         out[(x, y)] = ramp[level]
     return out
 
@@ -529,7 +546,7 @@ def make_darken(spec, outline, materials=False):
 BAYER4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
 
-def render_frame(spec, rig, pose, parts):
+def render_frame(spec, rig, pose, parts, previous=None):
     """Render one pose. Pose keys beyond joint angles:
 
     plant: "all"  rest the lowest pixel of the whole body (not only the feet) on the ground row,
@@ -546,7 +563,8 @@ def render_frame(spec, rig, pose, parts):
         bottom = _bottom(spec, rig, pose, support)
         if bottom is not None:
             pose = dict(pose, dy=pose.get("dy", 0) + (spec["size"][1] - 1) - bottom)
-    image = _render(spec, rig, pose, parts)
+    image = _render(spec, rig, pose, parts, previous)
+    image.info["pose"] = pose  # the grounded pose actually drawn; the next frame's smear starts here
     image.info["pivot"] = [math.floor(c) for c in root_bone(place(spec, rig, pose)).start]
     if pose.get("flash"):
         flash = hex_rgba(spec.get("flash", "#FFFFFF"))
@@ -579,7 +597,7 @@ def _bottom(spec, rig, pose, parts):
     return box[3] if box else None
 
 
-def _render(spec, rig, pose, parts):
+def _render(spec, rig, pose, parts, previous=None):
     w, h = spec["size"]
     bones = place(spec, rig, pose)
     mats = {k: [hex_rgba(c) for c in v] for k, v in spec.get("materials", {}).items()}
@@ -598,7 +616,8 @@ def _render(spec, rig, pose, parts):
             ramp = mats[part["mat"]]
             if part.get("far"):
                 ramp = [ramp[0], ramp[0], ramp[1]]
-            painted = shade(mask, ramp, normal, spec.get("style"))
+            bone = bones[part["bone"]]
+            painted = shade(mask, ramp, normal, spec.get("style"), part.get("texture"), part_local(bone))
         for p, c in painted.items():
             color[p], owner[p] = c, (index, part.get("group", part["name"]))
     # Separate overlapping groups: a back pixel touching a front group gets darker.
@@ -616,6 +635,19 @@ def _render(spec, rig, pose, parts):
             if back.get("mat") == front.get("mat"):
                 color[(x, y)] = mats[back["mat"]][0]
                 break
+    opts = polish.options(spec.get("style"))
+    tones = None
+    if opts:
+        ramps = [[hex_rgba(c) for c in r] for r in spec.get("materials", {}).values()]
+        palette = {k: hex_rgba(v) for k, v in spec.get("palette", {}).items()}
+        ramps += [[palette[ch] for ch in r] for r in spec.get("ramps", [])]
+        tones = polish.Tones(ramps)
+        if opts["clean"]:
+            polish.clean(color, owner)
+            polish.despeckle(color, tones)
+        polish.lighting(color, owner, parts, tones, light_vector(spec.get("style")), opts)
+        if opts["clean"]:
+            polish.despeckle(color, tones)  # lighting can leave single-pixel tone changes behind
     for stamp in spec.get("stamps", []):
         bone = bones[stamp["bone"]]
         ox, oy = bone.local(*stamp["at"])
@@ -645,6 +677,21 @@ def _render(spec, rig, pose, parts):
             lit = color.get((x, y + 1)) or color.get((x - 1, y))
             selout[(x, y)] = darken(lit, spec.get("selout_steps", 3), spec.get("selout", 1.0)) if lit else outline
     color.update(selout)
+    if opts.get("aa") and kind != "none":
+        polish.corner_aa(color, set(selout), tones)
+    target = pose.get("smear")
+    if opts.get("smear") and target and previous is not None and target in bones:
+        before = place(spec, rig, previous)[target]
+        reach = max([1.0] + [max(part.get("span", [0, 1])[1], *(u for u, _ in part.get("points", [[0, 0]])),
+                                 part.get("at", [0, 0])[0] + part.get("ry", 0))
+                             for part in parts if part.get("bone") == target and part.get("shape") != "sprite"])
+        if "smear" in spec:
+            fill = hex_rgba(spec["smear"])
+        else:  # the brightest color the character already uses, so the trail stays in the palette
+            candidates = [hex_rgba(c) for r in spec.get("materials", {}).values() for c in r]
+            candidates += [hex_rgba(c) for c in spec.get("palette", {}).values() if len(c) == 7]
+            fill = max(candidates, key=lambda c: c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722)
+        polish.smear(color, before, bones[target], reach, fill)
     shadow = spec.get("shadow")
     if shadow:
         # Ground shadow for floating characters: shrinks as the body rises; never covers the art.
@@ -739,12 +786,23 @@ def write_rest_sheet(spec, rig, out, scale):
 
 SPEC_KEYS = {"name", "size", "rig", "root_x", "outline", "proportions", "pose_offset", "materials", "parts",
              "extras", "stamps", "anims", "palette", "cutout", "ramps", "cleanup", "selout", "selout_steps",
-             "far_steps", "far_shade", "touchups", "shadow", "draw", "flash", "motion", "build", "style"}
+             "far_steps", "far_shade", "touchups", "shadow", "draw", "flash", "motion", "build", "style",
+             "palette_gen", "smear"}
 HEX = "0123456789abcdefABCDEF"
 
 
 def is_hex(value):
     return isinstance(value, str) and len(value) == 7 and value[0] == "#" and all(c in HEX for c in value[1:])
+
+
+def prepare_spec(spec):
+    """Expand generated colors: materials given as {"base": ...} and palette_gen ramps."""
+    if not isinstance(spec, dict):
+        raise ValueError("spec: expected a JSON object")
+    spec = palette_tools.expand_palette(spec)
+    if isinstance(spec.get("materials"), dict):
+        spec = dict(spec, materials=palette_tools.expand_materials(spec["materials"]))
+    return spec
 
 
 def validate_spec(spec):
@@ -778,9 +836,9 @@ def validate_spec(spec):
     for where, motion in [("motion", spec.get("motion"))] + [(f"anims[{i}].motion", a.get("motion")) for i, a in enumerate(anims)]:
         if motion is None:
             continue
-        if not isinstance(motion, dict) or set(motion) - {"weight", "energy", "exaggeration", "seed"}:
-            raise ValueError(f"{where}: expected an object with weight, energy, exaggeration and/or seed")
-        for key, low, high in (("weight", 0, 1), ("energy", 0, 1), ("exaggeration", 0, 2)):
+        if not isinstance(motion, dict) or set(motion) - {"weight", "energy", "exaggeration", "seed", "follow"}:
+            raise ValueError(f"{where}: expected an object with weight, energy, exaggeration, follow and/or seed")
+        for key, low, high in (("weight", 0, 1), ("energy", 0, 1), ("exaggeration", 0, 2), ("follow", 0, 1)):
             value = motion.get(key)
             if value is not None and not (isinstance(value, (int, float)) and low <= value <= high):
                 raise ValueError(f"{where}.{key}: expected a number {low}..{high}")
@@ -807,6 +865,9 @@ def validate_spec(spec):
                 raise ValueError(f"{where}: unknown bone {part.get('bone')!r}; bones are {sorted(bones)}")
             if part.get("mat") not in materials:
                 raise ValueError(f"{where}: material {part.get('mat')!r} is not defined in materials")
+    for where, part in [(f"parts.{n}", p) for n, p in spec.get("parts", {}).items()] +             [(f"extras[{i}]", e) for i, e in enumerate(spec.get("extras", []))]:
+        if "texture" in part and part["texture"] not in polish.TEXTURES:
+            raise ValueError(f"{where}.texture: choose from {list(polish.TEXTURES)}")
     palette = spec.get("palette", {})
     for k, v in palette.items():
         if len(k) != 1 or k == "." or not is_hex(v):
@@ -844,8 +905,12 @@ def validate_spec(spec):
             layers[layer.get("name")] = layer
     style = spec.get("style")
     if style is not None:
-        if not isinstance(style, dict) or set(style) - {"outline", "shades", "dither", "light"}:
-            raise ValueError("style: expected an object with outline, shades, dither and/or light")
+        if not isinstance(style, dict) or set(style) - {"outline", "shades", "dither", "light", "polish"}:
+            raise ValueError("style: expected an object with outline, shades, dither, light and/or polish")
+        pol = style.get("polish", False)
+        if not (isinstance(pol, bool) or (isinstance(pol, dict) and set(pol) <= set(polish.PASSES)
+                                          and all(isinstance(v, bool) for v in pol.values()))):
+            raise ValueError(f"style.polish: true, false, or an object of booleans for {list(polish.PASSES)}")
         if style.get("outline", "black") not in ("black", "selout", "none"):
             raise ValueError("style.outline: choose black, selout or none")
         if style.get("shades", 4) not in (2, 3, 4):
@@ -855,6 +920,8 @@ def validate_spec(spec):
         light = style.get("light", "upper-front")
         if not (isinstance(light, (int, float)) and not isinstance(light, bool)) and light not in LIGHTS:
             raise ValueError(f"style.light: a number of degrees or one of {sorted(LIGHTS)}")
+    if "smear" in spec and not is_hex(spec["smear"]):
+        raise ValueError("smear: expected #RRGGBB, the motion-trail color")
     if "flash" in spec and not is_hex(spec["flash"]):
         raise ValueError("flash: expected #RRGGBB, the hit-flash color")
     shadow = spec.get("shadow")
@@ -890,7 +957,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
-        spec = json.loads(Path(args.spec).read_text(encoding="utf-8"))
+        spec = prepare_spec(json.loads(Path(args.spec).read_text(encoding="utf-8")))
         validate_spec(spec)
     except (OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
@@ -923,14 +990,18 @@ def main(argv=None):
         params = {k: v for k, v in anim.items() if k not in ("preset", "name", "pose_offset", "motion")}
         family = rig.get("family", "humanoid")
         frames = presets.personalize(presets.anim(family, anim["preset"], **params), family,
-                                     {**spec.get("motion", {}), **anim.get("motion", {})})
+                                     {**spec.get("motion", {}), **anim.get("motion", {})},
+                                     loop=anim["preset"] in presets.LOOPING)
         images = []
         (out / name).mkdir(exist_ok=True)
         offset = {**spec.get("pose_offset", {}), **anim.get("pose_offset", {})}
+        drawn = None
         for i, (pose, duration) in enumerate(frames):
             # Character posture (hunch, wide stance...) is added on top of every preset frame.
             pose = {**pose, **{k: pose.get(k, 0) + v for k, v in offset.items()}}
-            image = apply_touchups(render_frame(spec, rig, pose, parts), spec, name, i)
+            image = render_frame(spec, rig, pose, parts, drawn)
+            drawn = image.info["pose"]
+            image = apply_touchups(image, spec, name, i)
             doc = to_v1_document(image, f"{spec.get('name', 'character')} {name} {i}")
             check, _ = v1.render_document(doc)
             if pixels_of(check) != pixels_of(image):

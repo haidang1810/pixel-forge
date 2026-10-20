@@ -40,9 +40,10 @@ Use `scripts/rig2d.py` for side-view characters and animated sprites; do not han
 2. Choose the quality path and say which one:
    - **Vector parts**: shapes on bones, auto-shaded. This is quick and clean, good for prototypes and simple mobs.
    - **Cutout layers**: pixel regions painted once in the rest pose with `draw` ops, then split onto the bones automatically. This is the path toward final art.
-3. Render. Inspect `contact.png` and at least one enlarged key frame per animation (the extremes of a stride or a swing). Check silhouette, readability, limbs tangling, parts detaching, and edge clipping.
-4. Correct the parts or the posture first. Only then fix the key frames by hand with `touchups`. Keep at most two correction rounds unless a concrete issue remains.
-5. Deliver the sheets, `animation.json`, a preview GIF made with `showcase.py`, and the spec. State the frame size, frame counts, timings, and the visible limitations.
+3. Build colors from base colors with hue-shifted ramps (`{"base": "#RRGGBB"}` materials or `palette_gen`) rather than picking shades by hand. For final art, turn on `"style": {"polish": true}` (cutout characters: `{"aa": true, "smear": true}`), add `texture` to parts where the material calls for it (fur, scales, cloth, metal), and give `motion` some `follow`.
+4. Render. Inspect `contact.png` and at least one enlarged key frame per animation (the extremes of a stride or a swing). Check silhouette, readability, limbs tangling, parts detaching, and edge clipping. Run `scripts/lint.py OUT_DIR` and fix the findings that are real problems.
+5. Correct the parts or the posture first. Only then fix the key frames by hand with `touchups`. Keep at most two correction rounds unless a concrete issue remains.
+6. Deliver the sheets, `animation.json`, a preview GIF made with `showcase.py`, and the spec. State the frame size, frame counts, timings, and the visible limitations.
 
 ## Tool loop
 

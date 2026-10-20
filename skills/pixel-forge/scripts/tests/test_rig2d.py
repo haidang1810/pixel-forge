@@ -313,6 +313,81 @@ class Rig2dTests(unittest.TestCase):
         result, _ = self.run_cli(bad)
         self.assertEqual(result.returncode, 2)
 
+    def test_hue_shifted_ramps(self):
+        import colorsys
+        tools = load("palette_tools", SCRIPTS / "palette_tools.py")
+        ramp = tools.ramp("#4F7A34", 5)
+        self.assertEqual(len(ramp), 5)
+        hsv = [colorsys.rgb_to_hsv(*(int(c[i:i + 2], 16) / 255 for i in (1, 3, 5))) for c in ramp]
+        values = [v for _, _, v in hsv]
+        self.assertEqual(values, sorted(values), "ramp should go dark to light")
+        base_hue = hsv[2][0] * 360
+        self.assertGreater(hsv[0][0] * 360, base_hue, "shadows lean toward blue")
+        self.assertLess(hsv[-1][0] * 360, base_hue, "highlights lean toward yellow")
+        spec = tools.expand_palette({"palette_gen": {"abc": "#B83244"}})
+        self.assertEqual(set(spec["palette"]), {"a", "b", "c"})
+        self.assertIn("abc", spec["ramps"])
+        mats = tools.expand_materials({"skin": {"base": "#C98F6E", "tones": 3}, "cloth": ["#000000", "#111111", "#222222"]})
+        self.assertEqual(len(mats["skin"]), 3)
+        with self.assertRaises(ValueError):
+            tools.expand_materials({"skin": {"base": "red"}})
+
+    def test_polish_stays_in_palette_and_can_be_turned_off(self):
+        spec = humanoid()
+        spec["anims"] = [{"preset": "attack"}]
+        spec["extras"] = [{"name": "blade", "bone": "weapon_n", "shape": "capsule", "span": [2, 12], "r": 0.8,
+                           "mat": "body", "z": 61, "texture": "metal"}]
+        plain, out_plain = self.run_cli(spec)
+        spec["style"] = {"polish": True}
+        polished, out_polished = self.run_cli(spec)
+        self.assertEqual(plain.returncode, 0, plain.stderr)
+        self.assertEqual(polished.returncode, 0, polished.stderr)
+        a, b = opened(out_plain / "attack.png"), opened(out_polished / "attack.png")
+        self.assertNotEqual(a.tobytes(), b.tobytes())
+        allowed = {self.rig.hex_rgba(c) for ramp in spec["materials"].values() for c in ramp}
+        allowed.add((0x10, 0x10, 0x10, 255))  # the outline; the slash smear reuses the brightest tone
+        self.assertLessEqual({c for c in self.rig.pixels_of(b) if c[3]}, allowed)
+        bad = humanoid(); bad["style"] = {"polish": {"glow": True}}
+        self.assertEqual(self.run_cli(bad)[0].returncode, 2)
+        bad = humanoid(); bad["parts"] = {"head": {"texture": "plaid"}}
+        self.assertEqual(self.run_cli(bad)[0].returncode, 2)
+
+    def test_smear_only_with_polish(self):
+        spec = humanoid()
+        spec["anims"] = [{"preset": "attack"}]
+        spec["extras"] = [{"name": "blade", "bone": "weapon_n", "shape": "capsule", "span": [2, 12], "r": 0.8,
+                           "mat": "body", "z": 61}]
+        spec["smear"] = "#FF00FF"
+        magenta = (255, 0, 255, 255)
+        _, out = self.run_cli(spec)
+        self.assertNotIn(magenta, self.rig.pixels_of(opened(out / "attack.png")))
+        spec["style"] = {"polish": {"smear": True}}
+        _, out = self.run_cli(spec)
+        strike = opened(out / "attack" / "frame-03.png")
+        self.assertIn(magenta, self.rig.pixels_of(strike))
+
+    def test_follow_through_lags_chain_joints(self):
+        presets = self.rig.presets
+        run = presets.anim("quadruped", "run")
+        self.assertIs(presets.personalize(run, "quadruped", {"follow": 0}, loop=True), run)
+        lagged = presets.personalize(run, "quadruped", {"follow": 0.8}, loop=True)
+        self.assertNotEqual([p["tail3"] for p, _ in run], [p["tail3"] for p, _ in lagged])
+        self.assertEqual([p["hip_bn"] for p, _ in run], [p["hip_bn"] for p, _ in lagged])
+
+    def test_lint_flags_stray_pixels(self):
+        lint = load("lint", SCRIPTS / "lint.py")
+        image = Image.new("RGBA", (20, 20), (0, 0, 0, 0))
+        for x in range(4, 16):
+            for y in range(4, 16):
+                image.putpixel((x, y), (20, 20, 20, 255) if x in (4, 15) or y in (4, 15) else (100, 140, 200, 255))
+        clean_metrics, clean_findings = lint.lint_frame(image)
+        self.assertFalse([f for f in clean_findings if f.startswith("stray")])
+        for p in ((6, 6), (8, 10), (12, 7), (10, 12), (13, 13)):
+            image.putpixel(p, (220, 60, 60, 255))
+        metrics, findings = lint.lint_frame(image)
+        self.assertEqual(metrics["stray"], 5)
+        self.assertTrue(any(f.startswith("stray") for f in findings))
+
     def test_scale2x_keeps_flat_regions(self):
         grid = [[1, 1], [1, 1]]
         self.assertEqual(self.rig.scale2x(grid), [[1] * 4 for _ in range(4)])

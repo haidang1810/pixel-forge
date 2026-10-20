@@ -1,42 +1,406 @@
 {
-  "name": "wolf-vector",
-  "size": [56, 40],
-  "rig": "quadruped",
-  "root_x": 0.32,
-  "outline": "#15131C",
-  "materials": {
-    "fur":   ["#343A54", "#5B6584", "#838DAF", "#B3BBD8"],
-    "cream": ["#8F7F68", "#CBBC9C", "#EFE5CC"],
-    "paw":   ["#1F2130", "#33374A", "#4A5068"],
-    "inner": ["#5A3A44", "#7E5260", "#9E6E7A"]
-  },
-  "parts": {
-    "tail": {"shape": "poly", "points": [[0, -1.6], [3, -2.6], [5, -3.6], [7, -3], [9.5, -2.6], [11.5, 0], [9.6, 1.8],
-                                         [8.2, 1.2], [7, 2.8], [5, 2.2], [3.8, 3.2], [2, 1.6], [0, 1.6]]}
-  },
-  "extras": [
-    {"name": "mane", "bone": "spine", "shape": "poly", "mat": "fur", "z": 31, "group": "body",
-     "points": [[6, -4], [7.4, -6.6], [9, -4.6], [10.8, -7.6], [12.4, -5], [14.4, -7.8], [16.6, -4], [14, -3], [9, -3.2]]},
-    {"name": "belly", "bone": "spine", "shape": "poly", "mat": "cream", "z": 31, "group": "body",
-     "points": [[9, 3.6], [15, 4.4], [13, 6.4], [11.6, 5.6], [10.4, 6.6], [9, 5.4], [7.4, 4.4]]},
-    {"name": "ruff", "bone": "neck", "shape": "poly", "mat": "cream", "z": 33, "group": "body",
-     "points": [[-2, 1], [3, 2.6], [3.6, 4.4], [2, 5], [1.6, 6.8], [0, 5.4], [-1, 7.2], [-2, 5.2], [-3.6, 5.8], [-3, 3]]},
-    {"name": "cheek", "bone": "head", "shape": "poly", "mat": "cream", "z": 43, "group": "head",
-     "points": [[-2.6, 0.6], [1, 2], [0, 3.6], [-1.6, 3], [-2.8, 4.6], [-3.8, 2.2]]},
-    {"name": "jaw", "bone": "head", "shape": "capsule", "span": [2.6, 7.8], "v": 2.6, "r": [1.6, 1.1], "mat": "cream", "z": 42, "group": "head"},
-    {"name": "inner_ear", "bone": "head", "shape": "poly", "mat": "inner", "z": 43, "group": "ear",
-     "points": [[-0.9, -3.6], [-0.6, -7.4], [1.2, -3.8]]},
-    {"name": "tailtip", "bone": "tail", "shape": "poly", "mat": "cream", "z": 21, "group": "tail",
-     "points": [[8.6, -2.4], [9.5, -2.6], [11.5, 0], [9.6, 1.8], [8.6, 1.2]]}
+ "name": "wolf-vector",
+ "size": [
+  56,
+  40
+ ],
+ "rig": "quadruped",
+ "root_x": 0.32,
+ "outline": "#15131C",
+ "materials": {
+  "fur": [
+   "#343A54",
+   "#5B6584",
+   "#838DAF",
+   "#B3BBD8"
   ],
-  "stamps": [
-    {"bone": "head", "at": [1.6, -2.8], "rows": ["oo..", ".ooo", "..yy"], "colors": {"o": "#15131C", "y": "#FFC845"}},
-    {"bone": "head", "at": [8.6, -0.6], "rows": ["oo", "o."], "colors": {"o": "#15131C"}},
-    {"bone": "head", "at": [3.6, 2.4], "rows": ["ooooo", "...w."], "colors": {"o": "#15131C", "w": "#FFFFFF"}}
+  "cream": [
+   "#8F7F68",
+   "#CBBC9C",
+   "#EFE5CC"
   ],
-  "anims": [
-    {"preset": "idle"},
-    {"preset": "walk", "stride": 20},
-    {"preset": "run", "stride": 36}
+  "paw": [
+   "#1F2130",
+   "#33374A",
+   "#4A5068"
+  ],
+  "inner": [
+   "#5A3A44",
+   "#7E5260",
+   "#9E6E7A"
   ]
+ },
+ "parts": {
+  "tail": {
+   "shape": "poly",
+   "points": [
+    [
+     0,
+     -1.6
+    ],
+    [
+     3,
+     -2.6
+    ],
+    [
+     5,
+     -3.6
+    ],
+    [
+     7,
+     -3
+    ],
+    [
+     9.5,
+     -2.6
+    ],
+    [
+     11.5,
+     0
+    ],
+    [
+     9.6,
+     1.8
+    ],
+    [
+     8.2,
+     1.2
+    ],
+    [
+     7,
+     2.8
+    ],
+    [
+     5,
+     2.2
+    ],
+    [
+     3.8,
+     3.2
+    ],
+    [
+     2,
+     1.6
+    ],
+    [
+     0,
+     1.6
+    ]
+   ]
+  },
+  "body": {
+   "texture": "fur"
+  },
+  "neck": {
+   "texture": "fur"
+  },
+  "head": {
+   "texture": "fur"
+  }
+ },
+ "extras": [
+  {
+   "name": "mane",
+   "bone": "spine",
+   "shape": "poly",
+   "mat": "fur",
+   "z": 31,
+   "group": "body",
+   "points": [
+    [
+     6,
+     -4
+    ],
+    [
+     7.4,
+     -6.6
+    ],
+    [
+     9,
+     -4.6
+    ],
+    [
+     10.8,
+     -7.6
+    ],
+    [
+     12.4,
+     -5
+    ],
+    [
+     14.4,
+     -7.8
+    ],
+    [
+     16.6,
+     -4
+    ],
+    [
+     14,
+     -3
+    ],
+    [
+     9,
+     -3.2
+    ]
+   ]
+  },
+  {
+   "name": "belly",
+   "bone": "spine",
+   "shape": "poly",
+   "mat": "cream",
+   "z": 31,
+   "group": "body",
+   "points": [
+    [
+     9,
+     3.6
+    ],
+    [
+     15,
+     4.4
+    ],
+    [
+     13,
+     6.4
+    ],
+    [
+     11.6,
+     5.6
+    ],
+    [
+     10.4,
+     6.6
+    ],
+    [
+     9,
+     5.4
+    ],
+    [
+     7.4,
+     4.4
+    ]
+   ]
+  },
+  {
+   "name": "ruff",
+   "bone": "neck",
+   "shape": "poly",
+   "mat": "cream",
+   "z": 33,
+   "group": "body",
+   "points": [
+    [
+     -2,
+     1
+    ],
+    [
+     3,
+     2.6
+    ],
+    [
+     3.6,
+     4.4
+    ],
+    [
+     2,
+     5
+    ],
+    [
+     1.6,
+     6.8
+    ],
+    [
+     0,
+     5.4
+    ],
+    [
+     -1,
+     7.2
+    ],
+    [
+     -2,
+     5.2
+    ],
+    [
+     -3.6,
+     5.8
+    ],
+    [
+     -3,
+     3
+    ]
+   ]
+  },
+  {
+   "name": "cheek",
+   "bone": "head",
+   "shape": "poly",
+   "mat": "cream",
+   "z": 43,
+   "group": "head",
+   "points": [
+    [
+     -2.6,
+     0.6
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     0,
+     3.6
+    ],
+    [
+     -1.6,
+     3
+    ],
+    [
+     -2.8,
+     4.6
+    ],
+    [
+     -3.8,
+     2.2
+    ]
+   ]
+  },
+  {
+   "name": "jaw",
+   "bone": "head",
+   "shape": "capsule",
+   "span": [
+    2.6,
+    7.8
+   ],
+   "v": 2.6,
+   "r": [
+    1.6,
+    1.1
+   ],
+   "mat": "cream",
+   "z": 42,
+   "group": "head"
+  },
+  {
+   "name": "inner_ear",
+   "bone": "head",
+   "shape": "poly",
+   "mat": "inner",
+   "z": 43,
+   "group": "ear",
+   "points": [
+    [
+     -0.9,
+     -3.6
+    ],
+    [
+     -0.6,
+     -7.4
+    ],
+    [
+     1.2,
+     -3.8
+    ]
+   ]
+  },
+  {
+   "name": "tailtip",
+   "bone": "tail",
+   "shape": "poly",
+   "mat": "cream",
+   "z": 21,
+   "group": "tail",
+   "points": [
+    [
+     8.6,
+     -2.4
+    ],
+    [
+     9.5,
+     -2.6
+    ],
+    [
+     11.5,
+     0
+    ],
+    [
+     9.6,
+     1.8
+    ],
+    [
+     8.6,
+     1.2
+    ]
+   ]
+  }
+ ],
+ "stamps": [
+  {
+   "bone": "head",
+   "at": [
+    1.6,
+    -2.8
+   ],
+   "rows": [
+    "oo..",
+    ".ooo",
+    "..yy"
+   ],
+   "colors": {
+    "o": "#15131C",
+    "y": "#FFC845"
+   }
+  },
+  {
+   "bone": "head",
+   "at": [
+    8.6,
+    -0.6
+   ],
+   "rows": [
+    "oo",
+    "o."
+   ],
+   "colors": {
+    "o": "#15131C"
+   }
+  },
+  {
+   "bone": "head",
+   "at": [
+    3.6,
+    2.4
+   ],
+   "rows": [
+    "ooooo",
+    "...w."
+   ],
+   "colors": {
+    "o": "#15131C",
+    "w": "#FFFFFF"
+   }
+  }
+ ],
+ "anims": [
+  {
+   "preset": "idle"
+  },
+  {
+   "preset": "walk",
+   "stride": 20
+  },
+  {
+   "preset": "run",
+   "stride": 36
+  }
+ ],
+ "style": {
+  "polish": true
+ },
+ "motion": {
+  "follow": 0.6
+ }
 }

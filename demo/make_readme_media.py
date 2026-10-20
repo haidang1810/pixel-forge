@@ -114,6 +114,27 @@ def orc_variants():
     showcase([f"{n}/walk" for n in ORC_VARIANTS], IMAGES / "variety.gif", 4, 3, 2200)
 
 
+def polish_compare():
+    """The same knight and orc without and with colors, polish, textures and follow-through."""
+    import json
+    folder = RENDER / "raw"
+    folder.mkdir(parents=True, exist_ok=True)
+    for name in ("knight", "orc"):
+        spec = json.loads((EXAMPLES / f"{name}.json").read_text(encoding="utf-8"))
+        spec.pop("style", None)
+        spec.pop("motion", None)
+        for part in list(spec.get("parts", {}).values()) + spec.get("extras", []):
+            part.pop("texture", None)
+        if name == "orc":  # the hand-picked colors the orc had before generated ramps
+            spec["materials"]["skin"] = ["#2F4A24", "#4F7A34", "#7FAE4E"]
+            spec["materials"]["legs"] = ["#3A2620", "#5E3F2E", "#8A6045"]
+        spec["name"] = f"{name}-raw"
+        path = folder / f"{name}.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        run(SCRIPTS / "rig2d.py", path, "--out", RENDER / f"{name}-raw")
+    showcase(["knight-raw/attack", "knight/attack", "orc-raw/attack", "orc/attack"], IMAGES / "polish.gif", 4, 4, 2200)
+
+
 def main():
     IMAGES.mkdir(parents=True, exist_ok=True)
     RENDER.mkdir(parents=True, exist_ok=True)
@@ -128,6 +149,7 @@ def main():
     showcase(["slime/hop", "slime/attack", "serpent/slither", "serpent/attack", "raven/fly", "raven/attack"],
              IMAGES / "critters.gif", 6, 3, 2400)
     orc_variants()
+    polish_compare()
     with Image.open(RENDER / "wolf-rest" / "rest-grid.png") as grid:
         grid.convert("RGB").save(IMAGES / "wolf-rig.png", optimize=True)
     items_sheet()

@@ -11,6 +11,8 @@ python SKILL_DIR/scripts/rig2d.py SPEC.json --out OUT_DIR --bake BAKED.json
 python SKILL_DIR/scripts/showcase.py hero/idle hero/walk --root PARENT_OF_OUT_DIRS --out hero.gif
 python SKILL_DIR/scripts/gridview.py OUT_DIR/run/frame-01.png --out grid.png --scale 10
 python SKILL_DIR/scripts/dumpframe.py SPEC.json OUT_DIR/run/frame-01.png --box 16 30 48 47
+python SKILL_DIR/scripts/lint.py OUT_DIR
+python SKILL_DIR/scripts/palette_tools.py "#4F7A34" --tones 4
 ```
 
 A render writes the following into `OUT_DIR`:
@@ -115,6 +117,16 @@ A full mob set is idle, a move (walk, run or float), attack, hurt and die. Death
 
 Any bone can carry a `scale`: parts on it stretch along the bone by `scale` and narrow across it by 1/`scale`. The slime uses it for every frame. Part coordinates are always authored at scale 1.
 
+## Colors
+
+A material is a ramp of 3–4 colors, dark to light. It can be given directly or generated from one base color:
+
+```json
+"materials": {"skin": {"base": "#4F7A34"}, "cloth": {"base": "#9C2A3A", "tones": 3, "shift": 30}}
+```
+
+Generated ramps are hue shifted: the shadows lean toward blue-violet, and the highlights lean toward warm yellow and lose saturation. Prefer this over picking shades by hand. `shift` (in degrees, default 24) sets how strong the lean is. For cutout characters, `"palette_gen": {"1234": "#4F7A34"}` fills palette symbols 1–4 with a generated ramp and adds it to `ramps`. `palette_tools.py BASE` prints a ramp for hand authoring.
+
 ## Motion personality
 
 ```json
@@ -126,7 +138,9 @@ Any bone can carry a `scale`: parts on it stretch along the bone by `scale` and 
 - `exaggeration` (0–2; default 1): scales every joint's swing away from the rest pose. Use 0.6 for subtle, 1.4 for cartoony.
 - `seed` (integer): gives each joint a fixed small quirk (an angle offset and a gain) and makes the frame timing slightly uneven. Two creatures of one kind with different seeds never move identically; the same seed always repeats exactly.
 
-At the defaults the presets are unchanged. Give every character a personality that matches its identity.
+- `follow` (0–1; default 0): follow-through. Forearms, knees on wisps, tails, wingtips and snake tails trail behind the joints before them. Around 0.5 reads natural.
+
+At the defaults the presets are unchanged. Give every character a personality that matches its identity. A seed sometimes pushes a limb or weapon through the ground or off the canvas; if a warning reports that, try another seed.
 
 ## Style
 
@@ -140,6 +154,35 @@ At the defaults the presets are unchanged. Give every character a personality th
 - `light`: `upper-front` (the default), `upper-back`, `top`, `front`, `back`, or degrees (0 from the facing side, 90 from straight above).
 
 `shades`, `dither` and `light` apply to vector parts. Cutout layers keep their painted shading; `outline` applies to both. Share one style across all the assets of a game.
+
+### Polish
+
+`"style": {"polish": true}` turns on every pass below. An object such as `{"aa": true, "smear": true}` turns on only some of them.
+- `clean`: removes one-pixel bumps on thick edges and lone speckles inside a cluster of one ramp.
+- `aa`: manual anti-aliasing. An outer corner pixel boxed in by outline steps one tone darker.
+- `ao`: ambient occlusion. A back part is darker within two pixels of a front part of another group.
+- `cast`: a front part casts a shadow on the parts behind it, away from the light.
+- `rim`: a rim light on silhouette edges that face away from the light (runs of two or more pixels).
+- `smear`: on attack strike frames, a slash arc traced by the weapon or head tip. The color is spec `smear`, or by default the brightest color the character uses.
+
+Every tone change steps along the ramps, so frames stay inside the palette. `ao`, `cast` and `rim` skip cutout layers, whose shading is painted. For cutout characters use `{"aa": true, "smear": true}`.
+
+### Textures
+
+A vector part or extra can carry `"texture"`: `fur`, `scales`, `cloth`, `metal` or `noise`. The pattern shifts tones by one step in part-local coordinates, so it moves with the part instead of sliding across it.
+
+## Lint
+
+`lint.py OUT_DIR` checks every animation and reports, per kind with the frames involved:
+- `colors`: more colors than a small sprite needs;
+- `stray`: lone pixels, ignoring anti-aliasing corners;
+- `muddy`: touching tones too close in value;
+- `lighting`: top edges no lighter than bottom ones (pillow shading or a flipped light);
+- `thin`: a silhouette that is mostly outline;
+- `edge`: clipping;
+- `ground`: grounded frames on different rows.
+
+These are warnings to judge against the intent. Countershading, such as a dark back and a light belly, legitimately triggers `lighting`. Run lint before delivering and fix what is a real problem.
 
 ## Effects and special pose keys
 
