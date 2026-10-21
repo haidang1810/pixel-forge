@@ -11,6 +11,7 @@ import copy
 import importlib.util
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
@@ -87,7 +88,8 @@ def solve_skeleton(rig, pose, root):
     L, P = rig["bones"], pose
     bones = {}
     spine_dir = up(P.get("lean", 0))
-    bones["spine"] = Bone(root, spine_dir, L["spine"])
+    breath = 1 + P.get("breathe", 0)  # chest rise: the spine stretches, lifting shoulders and head
+    bones["spine"] = Bone(root, spine_dir, L["spine"] * breath, scale=breath)
     bones["head"] = Bone(add(bones["spine"].end, spine_dir, L["neck"]), up(P.get("lean", 0) + P.get("head", 0)), L["head"])
     shoulder = add(bones["spine"].end, spine_dir, -L["shoulder_drop"])
     for side in ("n", "f"):
@@ -260,6 +262,88 @@ def poly_test(points):
     def normal(x, y):
         return ((x - cx) / hx, (y - cy) / hy)
     return inside, (min(xs) - 1, min(ys) - 1, max(xs) + 1, max(ys) + 1), normal
+
+
+_LAG_CACHE = {}
+
+
+def lag_bones(spec, rig, pose):
+    key = id(pose)
+    if key not in _LAG_CACHE or _LAG_CACHE[key][0] is not pose:
+        _LAG_CACHE.clear()
+        _LAG_CACHE[key] = (pose, place(spec, rig, pose))
+    return _LAG_CACHE[key][1]
+
+
+def lagged(part, bone, before):
+    """Secondary motion: a part with "lag" (0..1) swings against its bone's rotation since the last
+    frame, around its "pivot" [u, v] (default: where it attaches), so ears, tails, hair and capes trail
+    behind the motion instead of moving rigidly."""
+    turn = math.atan2(bone.dir[1], bone.dir[0]) - math.atan2(before.dir[1], before.dir[0])
+    turn = (turn + math.pi) % (2 * math.pi) - math.pi
+    swing = max(-0.7, min(0.7, -part["lag"] * turn * 1.6))
+    if abs(swing) < 1e-3:
+        return bone
+    pivot = part.get("pivot") or (part["points"][0] if part.get("points") else part.get("at", [0, 0]))
+    px, py = bone.local(*pivot)
+    c, s_ = math.cos(swing), math.sin(swing)
+    sx, sy = bone.start[0] - px, bone.start[1] - py
+    start = (px + sx * c - sy * s_, py + sx * s_ + sy * c)
+    direction = (bone.dir[0] * c - bone.dir[1] * s_, bone.dir[0] * s_ + bone.dir[1] * c)
+    return Bone(start, direction, bone.length, bone.scale)
+
+
+def bake_vector(spec, rig):
+    """Freeze a vector character into cutout layers for pixel-level painting.
+
+    Each part is shaded in the rest pose together with only the parts beneath it, so pixels that the
+    arm hides at rest still exist when the arm swings away; the part's own pixels become a layer on its
+    bone. Colors become palette symbols, and every material ramp becomes a symbol ramp (outline first),
+    so far parts, separation lines and selective outlines keep stepping inside the palette."""
+    pose = rest_pose(spec, rig)
+    bones = place(spec, rig, pose)
+    parts = build_parts(spec, rig)
+    flat = dict(spec, style=dict(spec.get("style") or {}, outline="none", polish=False), stamps=[])
+    flat.pop("shadow", None)
+    flat.pop("cleanup", None)
+    w, h = spec["size"]
+    symbols = iter(SYMBOLS)
+    outline_symbol = next(symbols)
+    palette = {outline_symbol: spec["outline"].upper()}
+    lookup = {hex_rgba(spec["outline"]): outline_symbol}
+
+    def symbol(c):
+        if c not in lookup:
+            lookup[c] = next(symbols)
+            palette[lookup[c]] = "#%02X%02X%02X" % c[:3]
+        return lookup[c]
+    layers = []
+    for i, part in enumerate(parts):
+        if part.get("shape") == "sprite":
+            continue
+        inside, box, _ = part_shape(part, bones)
+        mask = rasterize(inside, box, (w, h))
+        if not mask:
+            continue
+        image = _render(flat, rig, pose, parts[:i + 1])
+        mine = {p: image.getpixel(p) for p in mask if 0 <= p[0] < w and 0 <= p[1] < h and image.getpixel(p)[3]}
+        if not mine:
+            continue
+        x0, y0 = min(x for x, _ in mine), min(y for _, y in mine)
+        x1, y1 = max(x for x, _ in mine), max(y for _, y in mine)
+        rows = ["".join(symbol(mine[(x, y)]) if (x, y) in mine else "." for x in range(x0, x1 + 1))
+                for y in range(y0, y1 + 1)]
+        layers.append({"name": part["name"], "bone": part["bone"], "origin": [x0, y0], "z": part["z"],
+                       "group": part_group(part), "rows": rows})
+    ramps = []
+    for colors in spec.get("materials", {}).values():
+        ramp = outline_symbol + "".join(lookup[c] for c in map(hex_rgba, colors) if c in lookup)
+        if len(ramp) > 2 and ramp not in ramps:
+            ramps.append(ramp)
+    baked = {k: v for k, v in spec.items() if k not in ("materials", "parts", "extras", "draw", "palette_kit")}
+    baked.update(palette=palette, ramps=ramps, cutout=layers)
+    baked["style"] = {k: v for k, v in (spec.get("style") or {}).items() if k not in ("snap",)}
+    return baked
 
 
 def part_shape(part, bones):
@@ -446,6 +530,114 @@ def shade(mask, ramp, normal, style=None, texture=None, local=None):
     return out
 
 
+def distance_inside(mask):
+    """Chamfer distance (in pixels) from each mask pixel to the nearest pixel outside the mask."""
+    big = 1e9
+    dist = {q: big for q in mask}
+    order = sorted(mask, key=lambda q: (q[1], q[0]))
+    for sweep, steps in ((order, ((-1, 0, 1), (0, -1, 1), (-1, -1, 1.414), (1, -1, 1.414))),
+                         (order[::-1], ((1, 0, 1), (0, 1, 1), (1, 1, 1.414), (-1, 1, 1.414)))):
+        for x, y in sweep:
+            best = dist[(x, y)]
+            for dx, dy, cost in steps:
+                other = dist.get((x + dx, y + dy))
+                best = min(best, cost if other is None else other + cost)
+            dist[(x, y)] = best
+    return dist
+
+
+def inflate(mask, iterations=40):
+    """A smooth dome over a pixel region: the solution of a Poisson equation (height 0 outside,
+    constant curvature inside), started from the chamfer distance so it settles in few sweeps.
+    Unlike a raw distance field it has no ridge along the middle of the shape."""
+    dist = distance_inside(mask)
+    h = {q: d * d * 0.5 for q, d in dist.items()}
+    order = list(mask)
+    for _ in range(iterations):
+        for x, y in order:
+            h[(x, y)] = (h.get((x + 1, y), 0.0) + h.get((x - 1, y), 0.0) + h.get((x, y + 1), 0.0)
+                         + h.get((x, y - 1), 0.0) + 1.0) / 4
+    return h
+
+
+def volume_levels(layers, style):
+    """Shade every vector part as one lit volume instead of per-part bands.
+
+    layers: [(mask, group, top_level)] in painting order. Each group is inflated into one smooth dome
+    (its parts blend), and a group sits on whatever group is under it, so a near arm stands out from
+    the torso by a shading edge rather than a drawn line. Light is a 3D direction from the style's
+    light plus a frontal component; tones follow Lambert shading with a highlight only on the most
+    lit planes, and a reflected-light rim lifts the shadow-side silhouette when there are 3+ shades.
+    Returns {pixel: level}.
+    """
+    lx, ly = light_vector(style)
+    shades = style.get("shades", 4)
+    groups, order, top_of = {}, [], {}
+    for mask, group, top in layers:
+        if group not in groups:
+            groups[group] = set()
+            order.append(group)
+        groups[group] |= mask
+        for q in mask:
+            top_of[q] = top
+    owner = {}
+    for mask, group, _ in layers:
+        for q in mask:
+            owner[q] = group
+    height = {}
+    for group in order:  # back to front: each group rests on what is already there
+        mask = {q for q in groups[group] if owner.get(q) == group}
+        if not mask:
+            continue
+        dome = inflate(mask)
+        for q, v in dome.items():
+            height[q] = math.sqrt(v) * 1.15 + height.get(q, 0.0) * 0.5
+    lz = 0.9
+    norm_l = math.sqrt(lx * lx + ly * ly + lz * lz)
+    Lx, Ly, Lz = lx / norm_l, ly / norm_l, lz / norm_l
+
+    def tone(i, top):
+        if shades >= 4 and top >= 3 and i > 0.93:
+            return 3
+        if shades >= 3 and i > 0.74:
+            return 2
+        if shades == 2:
+            return 1 if i > 0.5 else 0
+        return 1 if i > 0.38 else 0
+    levels = {}
+    for (x, y), h in height.items():
+        gx = (height.get((x + 1, y), 0.0) - height.get((x - 1, y), 0.0)) / 2
+        gy = (height.get((x, y + 1), 0.0) - height.get((x, y - 1), 0.0)) / 2
+        n = math.sqrt(gx * gx + gy * gy + 1.0)
+        i = (-gx * Lx - gy * Ly + Lz) / n
+        level = tone(i, top_of[(x, y)])
+        if style.get("dither"):
+            low, high = tone(i - 0.06, top_of[(x, y)]), tone(i + 0.06, top_of[(x, y)])
+            if low != high:
+                level = high if (x + y) % 2 == 0 else low
+        levels[(x, y)] = level
+    if shades >= 3:  # reflected light: lift the shadow-side silhouette one step, keeping a core shadow inside
+        lifts = []
+        for (x, y), level in levels.items():
+            if level != 0:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                if (x + dx, y + dy) not in levels and dx * lx + dy * ly < -0.3:
+                    if levels.get((x - dx, y - dy)) == 0:
+                        lifts.append((x, y))
+                    break
+        for q in lifts:
+            levels[q] = 1
+    return levels
+
+
+NEAR_LIMB = re.compile(r"_(n|bn|fn)$")
+
+
+def part_group(part):
+    return part.get("group", part["name"])
+
+
 def cutout_layers(spec, rig):
     """Pixel layers for a cutout character: drawn regions (spec "draw") first, then baked "cutout" rows."""
     layers = []
@@ -580,7 +772,7 @@ def snap_to_kit(image, slug):
 BAYER4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
 
-def render_frame(spec, rig, pose, parts, previous=None):
+def render_frame(spec, rig, pose, parts, previous=None, lag_from=None):
     """Render one pose. Pose keys beyond joint angles:
 
     plant: "all"  rest the lowest pixel of the whole body (not only the feet) on the ground row,
@@ -597,7 +789,7 @@ def render_frame(spec, rig, pose, parts, previous=None):
         bottom = _bottom(spec, rig, pose, support)
         if bottom is not None:
             pose = dict(pose, dy=pose.get("dy", 0) + (spec["size"][1] - 1) - bottom)
-    image = _render(spec, rig, pose, parts, previous)
+    image = _render(spec, rig, pose, parts, previous, lag_from or previous)
     image.info["pose"] = pose  # the grounded pose actually drawn; the next frame's smear starts here
     image.info["pivot"] = [math.floor(c) for c in root_bone(place(spec, rig, pose)).start]
     if pose.get("flash"):
@@ -612,7 +804,7 @@ def render_frame(spec, rig, pose, parts, previous=None):
     if amount > 0:
         for y in range(image.height):
             for x in range(image.width):
-                if BAYER4[y % 4][x % 4] < amount * 16:
+                if BAYER4[(y // 2) % 4][(x // 2) % 4] < amount * 16:  # 2x2 chunks, not a fine checker
                     image.putpixel((x, y), (0, 0, 0, 0))
     return image
 
@@ -633,14 +825,16 @@ def _bottom(spec, rig, pose, parts):
     return box[3] if box else None
 
 
-def _render(spec, rig, pose, parts, previous=None):
+def _render(spec, rig, pose, parts, previous=None, lag_from=None):
     w, h = spec["size"]
     bones = place(spec, rig, pose)
     mats = {k: [hex_rgba(c) for c in v] for k, v in spec.get("materials", {}).items()}
     outline = hex_rgba(spec["outline"])
     darken = make_darken(spec, outline)
 
-    color, owner = {}, {}
+    style = spec.get("style") or {}
+    volume = style.get("shading", "volume") == "volume"
+    color, owner, vector = {}, {}, {}
     for index, part in enumerate(parts):
         if part.get("shape") == "sprite":
             painted = part["sprite"].paint(bones[part["bone"]], (w, h))
@@ -648,16 +842,34 @@ def _render(spec, rig, pose, parts, previous=None):
                 steps = spec.get("far_steps", 2)
                 painted = {p: far_tone(darken, c, steps, spec.get("far_shade", 0.35), outline) for p, c in painted.items()}
         else:
-            inside, box, normal = part_shape(part, bones)
+            on = bones
+            if part.get("lag") and lag_from is not None:
+                on = dict(bones, **{part["bone"]: lagged(part, bones[part["bone"]], lag_bones(spec, rig, lag_from)[part["bone"]])})
+            inside, box, normal = part_shape(part, on)
             mask = rasterize(inside, box, (w, h))
             ramp = mats[part["mat"]]
             if part.get("far"):
                 ramp = [ramp[0], ramp[0], ramp[1]]
             bone = bones[part["bone"]]
-            painted = shade(mask, ramp, normal, spec.get("style"), part.get("texture"), part_local(bone))
+            painted = shade(mask, ramp, normal, style, part.get("texture"), part_local(bone))
+            vector[index] = (mask, ramp, part_local(bone))
         for p, c in painted.items():
-            color[p], owner[p] = c, (index, part.get("group", part["name"]))
-    # Separate overlapping groups: a back pixel touching a front group gets darker.
+            color[p], owner[p] = c, (index, part_group(part))
+    if volume and vector:
+        layers = [(mask, part_group(parts[i]), len(ramp) - 1) for i, (mask, ramp, _) in vector.items()]
+        for p, level in volume_levels(layers, style).items():
+            index = owner[p][0]
+            if index not in vector:
+                continue  # a cutout layer covers this pixel
+            _, ramp, local = vector[index]
+            texture = parts[index].get("texture")
+            if texture:
+                top = min(len(ramp), style.get("shades", 4)) - 1
+                u, v = local(p[0] + 0.5, p[1] + 0.5)
+                level = max(0, min(top, level + polish.texture_offset(texture, round(u), round(v), level, top)))
+            color[p] = ramp[min(level, len(ramp) - 1)]
+    # Separate overlapping groups: a back pixel touching a front group of the same material steps one
+    # tone darker (volume shading) or takes its ramp's darkest tone (flat part shading).
     for (x, y), (index, group) in list(owner.items()):
         for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
             other = owner.get(nb)
@@ -667,12 +879,32 @@ def _render(spec, rig, pose, parts, previous=None):
             if not (back.get("separate", True) and front.get("separate", True)):
                 continue
             if back.get("shape") == "sprite":
-                color[(x, y)] = darken(color[(x, y)], 2, 0.45)
+                color[(x, y)] = darken(color[(x, y)], spec.get("separate_steps", 1), 0.45)
                 break
             if back.get("mat") == front.get("mat"):
-                color[(x, y)] = mats[back["mat"]][0]
+                ramp = mats[back["mat"]]
+                here = color[(x, y)]
+                soft = volume and here in ramp and not back.get("far")  # a far limb behind a near one keeps a dark edge
+                color[(x, y)] = ramp[max(0, ramp.index(here) - 1)] if soft else ramp[0]
                 break
+    if volume:
+        # Inner contour: where a near limb, or anything it carries, crosses another group of a different
+        # material (an arm over the torso, a hand over the belt), its edge takes its own darkest tone, so
+        # the limb keeps its full shape instead of melting into what is behind it.
+        contour = {}
+        for (x, y), (index, group) in owner.items():
+            front = parts[index]
+            if front.get("shape") == "sprite" or not NEAR_LIMB.search(front["bone"]) or index not in vector:
+                continue
+            for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                other = owner.get(nb)
+                if other and other[0] < index and other[1] != group and parts[other[0]].get("mat") != front.get("mat"):
+                    contour[(x, y)] = vector[index][1][0]
+                    break
+        color.update(contour)
     opts = polish.options(spec.get("style"))
+    if volume and style.get("polish") is True:
+        opts.update(ao=False, rim=False)  # volume lighting already does these; keep the cast shadow
     tones = None
     if opts:
         ramps = [[hex_rgba(c) for c in r] for r in spec.get("materials", {}).values()]
@@ -709,10 +941,13 @@ def _render(spec, rig, pose, parts, previous=None):
     elif kind == "black":
         selout = {p: outline for p in edge}
     elif kind is None:
+        # Light-facing edges take the darkest tone of the fill's own ramp: a tinted line that keeps the
+        # silhouette but lets lit tops glow; shadow-side edges and the ground contact stay outline-dark.
+        darkest = {c: ramp[0] for ramp in mats.values() for c in ramp[1:]}
         for x, y in edge:
             # Edges facing the light take a dark tint of the fill they border.
             lit = color.get((x, y + 1)) or color.get((x - 1, y))
-            selout[(x, y)] = darken(lit, spec.get("selout_steps", 3), spec.get("selout", 1.0)) if lit else outline
+            selout[(x, y)] = darkest.get(lit) or darken(lit, spec.get("selout_steps", 3), spec.get("selout", 1.0)) if lit else outline
     color.update(selout)
     if opts.get("aa") and kind != "none":
         polish.corner_aa(color, set(selout), tones)
@@ -722,13 +957,27 @@ def _render(spec, rig, pose, parts, previous=None):
         reach = max([1.0] + [max(part.get("span", [0, 1])[1], *(u for u, _ in part.get("points", [[0, 0]])),
                                  part.get("at", [0, 0])[0] + part.get("ry", 0))
                              for part in parts if part.get("bone") == target and part.get("shape") != "sprite"])
+        carried = [mats[p["mat"]] for p in parts if p.get("bone") == target and p.get("mat") in mats]
         if "smear" in spec:
             fill = hex_rgba(spec["smear"])
+        elif carried:  # a light tone of what swings, so the trail reads as its motion, not a white stick
+            ramp = max(carried, key=lambda r: sum(r[-1][:3]))
+            fill = ramp[-2] if len(ramp) > 2 else ramp[-1]
         else:  # the brightest color the character already uses, so the trail stays in the palette
             candidates = [hex_rgba(c) for r in spec.get("materials", {}).values() for c in r]
             candidates += [hex_rgba(c) for c in spec.get("palette", {}).values() if len(c) == 7]
             fill = max(candidates, key=lambda c: c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722)
-        polish.smear(color, before, bones[target], reach, fill)
+        # The tip's real path: pose the whole skeleton at in-between times, so a blade swung from the
+        # shoulder leaves a trail that stays attached to it.
+        path = []
+        for k in range(9):
+            t = k / 8
+            mid = {key: (previous[key] + (pose[key] - previous[key]) * t
+                         if isinstance(pose.get(key), (int, float)) and isinstance(previous.get(key), (int, float))
+                         else pose[key]) for key in pose}
+            bone = place(spec, rig, mid)[target]
+            path.append(bone)
+        polish.smear(color, before, bones[target], reach, fill, path)
     shadow = spec.get("shadow")
     if shadow:
         # Ground shadow for floating characters: shrinks as the body rises; never covers the art.
@@ -1050,8 +1299,11 @@ def main(argv=None):
         if target.resolve() == Path(args.spec).resolve():
             print("error: --bake must write a new file, not the source spec", file=sys.stderr)
             return 2
-        baked = {k: v for k, v in spec.items() if k != "draw"}
-        baked["cutout"] = cutout_layers(spec, rig)
+        if is_cutout(spec):
+            baked = {k: v for k, v in spec.items() if k != "draw"}
+            baked["cutout"] = cutout_layers(spec, rig)
+        else:  # a vector character becomes paintable pixel layers, one per part
+            baked = bake_vector(spec, rig)
         target.write_text(json.dumps(baked, indent=1), encoding="utf-8")
         print(f"wrote {target}")
     if args.rest:
@@ -1078,10 +1330,12 @@ def main(argv=None):
         offset = posture(spec, rig, anim)
         anim_spec, anim_parts = for_animation(spec, parts, anim)
         drawn = None
+        offset_of = lambda p: {**p, **{k: p.get(k, 0) + v for k, v in offset.items()}}
+        wrap = offset_of(frames[-1][0]) if looping and len(frames) > 1 else None
         for i, (pose, duration) in enumerate(frames):
             # Character posture (hunch, wide stance...) is added on top of every preset frame.
-            pose = {**pose, **{k: pose.get(k, 0) + v for k, v in offset.items()}}
-            image = render_frame(anim_spec, rig, pose, anim_parts, drawn)
+            pose = offset_of(pose)
+            image = render_frame(anim_spec, rig, pose, anim_parts, drawn, lag_from=drawn or wrap)
             drawn = image.info["pose"]
             image = apply_touchups(image, spec, name, i)
             doc = to_v1_document(image, f"{spec.get('name', 'character')} {name} {i}")

@@ -153,7 +153,9 @@ def apply_build(result, build):
 
 
 def scale_part(part, rig):
-    """Apply the rig's build (if any) to one part, in place."""
+    """Apply the rig's build and uniform scale (if any) to one of the spec's extras, in place."""
+    if rig.get("uniform", 1) != 1:
+        uniform_scale(part, rig["uniform"])
     build = rig.get("build")
     if not build:
         return part
@@ -184,13 +186,32 @@ def rig(name, proportions, build=None):
     scale = proportions.get("scale", 1)
     for bone in result["bones"]:
         result["bones"][bone] = proportions.get(bone, result["bones"][bone] * scale)
+    if scale != 1:  # a uniformly bigger character: thicker parts and room under the feet as well
+        result["uniform"] = scale
+        for part in result["parts"].values():
+            uniform_scale(part, scale)
+        result["sole"] *= scale
     return result
+
+
+def uniform_scale(part, k):
+    if "r" in part:
+        part["r"] = [r * k for r in part["r"]] if isinstance(part["r"], list) else part["r"] * k
+    for key in ("span", "at"):
+        if key in part:
+            part[key] = [c * k for c in part[key]]
+    for key in ("v", "rx", "ry"):
+        if key in part:
+            part[key] *= k
+    if "points" in part:
+        part["points"] = [[u * k, v * k] for u, v in part["points"]]
+    return part
 
 
 # ---------- animations ----------
 
 REST = {"lean": 3, "head": 0, "hip_n": 6, "knee_n": 6, "hip_f": -6, "knee_f": 6,
-        "sh_n": 12, "el_n": 40, "grip_n": 110, "sh_f": -8, "el_f": 25, "grip_f": 110}
+        "sh_n": 12, "el_n": 40, "grip_n": 60, "sh_f": -8, "el_f": 25, "grip_f": 60}
 
 
 def _pose(**changes):
@@ -220,12 +241,22 @@ def _fade(pose, steps, ms, rise=0):
 
 
 def idle(frames=4, ms=280, breath=4, **rest):
+    """Breathing idle: knees settle, the chest rises, the head nods a beat later and the arms and
+    weapon sway with it, so even 4 frames read as alive. breath scales all of it."""
     out = []
+    k = breath / 3
     for i in range(frames):
-        t = (1 - math.cos(2 * math.pi * i / frames)) / 2
-        out.append((_pose(**rest, knee_n=REST["knee_n"] + breath * t, knee_f=REST["knee_f"] + breath * t,
-                          hip_n=REST["hip_n"] + breath * t / 2, hip_f=REST["hip_f"] + breath * t / 2,
-                          sh_n=REST["sh_n"] - 3 * t, sh_f=REST["sh_f"] - 3 * t, head=-2 * t), ms))
+        a = 2 * math.pi * i / frames
+        t = (1 - math.cos(a)) / 2
+        late = (1 - math.cos(a - 0.9)) / 2  # head and hands lag the breath
+        # Feet apart and the far hand forward of the body, so both legs and both arms read.
+        base = _pose(**dict(dict(hip_n=REST["hip_n"] + 6, hip_f=REST["hip_f"] - 4, sh_f=28, el_f=45), **rest))
+        out.append((dict(base, breathe=0.1 * k * t, knee_n=base["knee_n"] + 7 * k * t, knee_f=base["knee_f"] + 7 * k * t,
+                         hip_n=base["hip_n"] + 3.5 * k * t, hip_f=base["hip_f"] + 3.5 * k * t,
+                         lean=base["lean"] + 2 * k * t, head=base["head"] - 4 * k * late,
+                         sh_n=base["sh_n"] - 6 * k * late, sh_f=base["sh_f"] - 6 * k * late,
+                         el_n=base["el_n"] + 6 * k * late, el_f=base["el_f"] + 5 * k * late,
+                         grip_n=base["grip_n"] - 8 * k * late), ms))
     return out
 
 
@@ -278,10 +309,13 @@ def hurt(ms=1.0, style="stand", **rest):
     """Hit reaction: white flash, knocked back away from the facing side, recover.
     style "float" keeps a floating creature's hover pose (trailing wisps) as the base."""
     base = float_(frames=8, **rest)[0][0] if style == "float" else _pose(**rest)
-    hit = dict(base, lean=-12, head=-12, sh_n=-25, el_n=60, sh_f=-40, el_f=50, hip_n=14, knee_n=18,
-               hip_f=-14, knee_f=14, dx=-1, flash=1)
-    recoil = dict(base, lean=-8, head=-6, sh_n=-10, el_n=50, sh_f=-25, el_f=40, hip_n=10, knee_n=14, dx=-2)
-    return _timed([(hit, 70), (recoil, 100), (_lerp(recoil, base, 0.5), 90), (base, 120)], ms)
+    hit = dict(base, lean=-16, head=-8, sh_n=-30, el_n=65, sh_f=-45, el_f=55, hip_n=16, knee_n=20,
+               hip_f=-16, knee_f=16, dx=-1, flash=1)
+    recoil = dict(base, lean=-20, head=-10, sh_n=-40, el_n=70, sh_f=-55, el_f=60, hip_n=20, knee_n=26,
+                  hip_f=-20, knee_f=18, dx=-4)
+    brace = dict(base, lean=-10, head=-8, sh_n=-12, el_n=55, sh_f=-28, el_f=45, hip_n=22, knee_n=30,
+                 hip_f=-12, knee_f=24, dx=-4)
+    return _timed([(hit, 70), (recoil, 110), (brace, 100), (_lerp(brace, base, 0.5), 90), (base, 110)], ms)
 
 
 def die(ms=1.0, style="fall", fade=0, **rest):
@@ -294,14 +328,14 @@ def die(ms=1.0, style="fall", fade=0, **rest):
         recoil = dict(float_pose, lean=-14, head=-8, sh_n=-40, sh_f=-50, dx=-1)
         return _timed([(hit, 70), (recoil, 110)], ms) + _fade(recoil, 5, round(90 * ms), rise=0.5)
     base = _pose(**rest)
-    hit = dict(base, lean=-12, head=-12, sh_n=-30, el_n=60, sh_f=-40, el_f=50, dx=-1, flash=1)
-    stagger = dict(base, lean=-18, head=-14, sh_n=-45, el_n=35, sh_f=-55, el_f=30, hip_n=22, knee_n=30,
+    hit = dict(base, lean=-12, head=-6, sh_n=-30, el_n=60, sh_f=-40, el_f=50, dx=-1, flash=1)
+    stagger = dict(base, lean=-18, head=-8, sh_n=-45, el_n=35, sh_f=-55, el_f=30, hip_n=22, knee_n=30,
                    hip_f=-10, knee_f=24, dx=-2)
     kneel = dict(base, lean=-6, head=22, sh_n=8, el_n=15, sh_f=-4, el_f=12, hip_n=75, knee_n=115,
                  hip_f=65, knee_f=105, dx=-2, plant="all")
-    falling = dict(base, lean=-55, head=-6, sh_n=40, el_n=20, sh_f=20, el_f=10, hip_n=70, knee_n=70,
+    falling = dict(base, lean=-55, head=12, grip_n=40, sh_n=40, el_n=20, sh_f=20, el_f=10, hip_n=70, knee_n=70,
                    hip_f=60, knee_f=60, dx=-2, plant="all")
-    lying = dict(base, lean=-90, head=-4, sh_n=75, el_n=8, sh_f=100, el_f=6, hip_n=88, knee_n=10,
+    lying = dict(base, lean=-90, head=30, grip_n=7, sh_n=75, el_n=8, sh_f=100, el_f=6, hip_n=88, knee_n=10,
                  hip_f=80, knee_f=14, dx=-3, plant="all")
     frames = _timed([(hit, 70), (stagger, 110), (kneel, 140), (falling, 90), (lying, 600)], ms)
     return frames + (_fade(lying, fade, round(90 * ms)) if fade else [])
@@ -336,13 +370,15 @@ def q_idle(frames=4, ms=300, wag=10, **rest):
     return out
 
 
-def q_walk(frames=8, ms=100, stride=18, fold=35, **rest):
-    # Lateral-sequence walk: back near, front near, back far, front far, a quarter cycle apart.
+def q_walk(frames=8, ms=100, stride=22, fold=38, **rest):
+    # Lateral-sequence walk: back near, front near, back far, front far, a quarter cycle apart. The
+    # shoulders rock and the head nods twice a cycle, once per front footfall.
     phases = {"bn": 0, "fn": 0.25, "bf": 0.5, "ff": 0.75}
     out = []
     for i in range(frames):
         t = 2 * math.pi * i / frames
-        out.append((dict(QREST, **rest, **_legs(t, phases, stride, fold), head=QREST["head"] + 4 * math.sin(2 * t),
+        out.append((dict(QREST, **rest, **_legs(t, phases, stride, fold), pitch=QREST["pitch"] + 2.5 * math.sin(2 * t),
+                         neck=QREST["neck"] - 3 * math.sin(2 * t + 0.6), head=QREST["head"] + 4 * math.sin(2 * t),
                          tail=QREST["tail"] + 6 * math.sin(t), tail2=4 * math.sin(t - 1),
                          tail3=5 * math.sin(t - 2)), ms))
     return out
@@ -627,6 +663,7 @@ def anim(family, name, **params):
 # ---------- motion personality ----------
 
 MOTION_DEFAULTS = {"weight": 0.5, "energy": 0.5, "exaggeration": 1.0, "follow": 0.0}
+MAX_CHANGE = 25  # degrees personality may add to or take from any joint of a preset pose
 # Joints that trail the ones before them (follow-through), from the root of each chain outward.
 FOLLOW_CHAINS = {
     "humanoid": [["el_n"], ["el_f"], ["knee_n"], ["knee_f"]],
@@ -640,7 +677,7 @@ LOOPING = {"idle", "walk", "run", "float", "hop", "fly", "slither"}  # any famil
 LOOPING_BY_FAMILY = {"humanoid": {"idle", "walk", "float"}, "quadruped": {"idle", "walk", "run"},
                      "slime": {"idle", "hop"}, "serpent": {"idle", "slither"}, "bird": {"idle", "hop", "fly"}}
 SPECIAL_KEYS = {"flash", "plant", "dissolve", "smear"}
-LINEAR_KEYS = {"dx", "dy", "stretch"}  # not angles
+LINEAR_KEYS = {"dx", "dy", "stretch", "breathe"}  # not angles
 SWING = ("sh_", "el_", "head", "neck", "tail", "wing", "jaw", "seg")
 BEND = ("knee_", "ankle_", "stretch")
 
@@ -656,8 +693,8 @@ def follow_through(frames, family, amount, loop):
         for depth, key in enumerate(chain, 1):
             lag = min(0.85, amount * depth / len(chain) if len(chain) > 1 else amount)
             for i, pose in enumerate(poses):
-                if key not in pose:
-                    continue
+                if key not in pose or pose.get("smear"):
+                    continue  # a strike frame keeps its exact pose: the blade lands where the preset aims it
                 before = poses[i - 1] if (i > 0 or loop) else pose
                 if key in before:
                     out[i][key] = pose[key] * (1 - lag) + before[key] * lag
@@ -701,11 +738,16 @@ def personalize(frames, family, motion, loop=False):
                 gain *= 0.6 + 0.8 * w
             elif k.startswith(SWING):
                 gain *= 0.5 + e
+            if k.startswith("grip_"):
+                continue  # how the weapon is held is the preset's intent (a thrust stays horizontal)
             offset, quirk = quirks.get(k, (0.0, 1.0))
             delta = pose[k] - base
             if k not in LINEAR_KEYS:  # angles: scale the short way round, so +200 and -160 behave alike
                 delta = (delta + 180) % 360 - 180
-            new[k] = base + delta * gain * quirk + offset
+            change = delta * gain * quirk - delta
+            if k not in LINEAR_KEYS:  # personality bends a preset, it never turns a pose inside out
+                change = max(-MAX_CHANGE, min(MAX_CHANGE, change))
+            new[k] = base + delta + change + offset
         jitter = 1 + rng.uniform(-0.08, 0.08) if rng else 1
         out.append((new, max(20, round(ms * tempo * jitter))))
     return out

@@ -26,7 +26,7 @@ def _cycle(frames, ms, rest, make):
     return [(_frame(start, rest, **make(2 * math.pi * i / frames)), ms) for i in range(frames)]
 
 
-def run(frames=8, ms=75, stride=38, knee=95, arm=48, lift=2, **rest):
+def run(frames=8, ms=75, stride=38, knee=95, arm=48, lift=3, **rest):
     """Run cycle with a flight phase: forward lean, arms pumping with bent elbows, knees driving high.
     stride: thigh swing (deg), knee: heel kick on the recovery swing, arm: shoulder swing,
     lift: pixels of flight between steps. Cyclic: frames x ms."""
@@ -42,6 +42,7 @@ def run(frames=8, ms=75, stride=38, knee=95, arm=48, lift=2, **rest):
         out["sh_f"] = 6 + arm * math.sin(t)
         out["el_n"] = 85 + 20 * math.sin(t)
         out["el_f"] = 85 - 20 * math.sin(t)
+        out["grip_n"] = -10  # a held weapon points forward along the pumping forearm, clear of the face
         # Lowest at mid-stance (frame 0, squash), highest in the split flight pose: two bounces a cycle.
         out["dy"] = -lift * (1 - math.cos(2 * t)) / 2
         return out

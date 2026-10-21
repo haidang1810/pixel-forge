@@ -186,16 +186,16 @@ def charge(ms=1.0, **rest):
                                               **_back(28, -78, 54), **_front(-12, 18, 0)), **rest))
     paw_up = dict(low, hip_fn=34, knee_fn=-60, ankle_fn=24)
     scrape = dict(low, hip_fn=-34, knee_fn=14, ankle_fn=0)
-    windup = dict(low, pitch=3, neck=90, dx=-1, **_back(40, -100, 68), **_front(-28, 50, -10))
-    lunge = dict(low, pitch=4, neck=100, head=50, dx=3, dy=-1, smear="head",
+    windup = dict(low, pitch=2, flex=6, neck=90, dx=-2, **_back(40, -100, 68), **_front(-28, 50, -10))
+    lunge = dict(low, pitch=4, flex=-10, neck=100, head=50, dx=6, dy=-2, smear="head",
                  **_back(-32, -14, 14), **_front(44, 10, 0))
-    impact = dict(low, pitch=10, neck=104, head=56, dx=5, **_back(-14, -30, 22), **_front(-6, 20, 0))
-    bounce = dict(low, pitch=-2, neck=72, head=30, dx=3, **_back(30, -82, 58), **_front(-22, 36, -6))
+    impact = dict(low, pitch=10, flex=-4, neck=104, head=56, dx=8, **_back(-14, -30, 22), **_front(-6, 20, 0))
+    bounce = dict(low, pitch=-2, flex=4, neck=72, head=30, dx=5, **_back(30, -82, 58), **_front(-22, 36, -6))
     for p in (paw_up, scrape, windup, impact, bounce):
         p.update(rest)
     return base.timed([(low, 120), (paw_up, 110), (scrape, 90), (paw_up, 110), (scrape, 90), (windup, 160),
                        (lunge, 60), (impact, 70), (dict(impact, pitch=11), 110), (bounce, 120),
-                       (dict(base.lerp(bounce, stand, 0.5), dx=1), 120), (stand, 140)], ms)
+                       (dict(base.lerp(bounce, stand, 0.5), dx=2), 120), (stand, 140)], ms)
 
 
 def rear_up(ms=1.0, **rest):

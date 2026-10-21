@@ -123,7 +123,11 @@ TEXTURES = ("fur", "scales", "cloth", "metal", "noise")
 
 
 def texture_offset(kind, u, v, level, top):
-    """Tone offset for a texture at part-local integer coordinates (moves with the part)."""
+    """Tone offset for a texture at part-local integer coordinates (moves with the part).
+
+    Fur, cloth and noise marks are 2x2-pixel clusters: single specks read as noise at 1x."""
+    if kind in ("fur", "cloth", "noise"):
+        u, v = u // 2, v // 2
     if kind == "fur":
         if (u * 5 + v * 3) % 7 == 0:
             return -1
@@ -136,7 +140,7 @@ def texture_offset(kind, u, v, level, top):
         if v % 3 == 1 and (u + (row % 2) * 2) % 4 == 2 and level < top:
             return 1
     elif kind == "cloth":
-        if (u + v) % 6 == 0:
+        if (u + v) % 4 == 0 and v % 2 == 0:
             return -1
     elif kind == "metal":
         # a diagonal glint across the lit side and a few dark scratches in the shadow side
@@ -150,32 +154,42 @@ def texture_offset(kind, u, v, level, top):
     return 0
 
 
-def smear(color, before, after, reach, fill):
+def smear(color, before, after, reach, fill, path=None):
     """A slash arc swept from a bone's previous to its current position, on empty pixels only (it
-    never covers the character). Intermediate bone positions rotate around the moving bone start,
-    and only the tip leaves a trail: a solid band about two pixels wide along the tip's path."""
+    never covers the character). Only the tip leaves a trail: a solid band about two pixels wide along
+    the tip's path. path, when given, is the bone at in-between poses (the real arc); otherwise the
+    bone start moves in a straight line while it rotates."""
     import math
-    a0, a1 = math.atan2(before.dir[1], before.dir[0]), math.atan2(after.dir[1], after.dir[0])
-    turn = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
-    steps = max(4, int(abs(turn) / 0.18))
     inner, outer = [], []
-    for k in range(steps + 1):
-        t = k / steps
-        sx = before.start[0] + (after.start[0] - before.start[0]) * t
-        sy = before.start[1] + (after.start[1] - before.start[1]) * t
-        a = a0 + turn * t
-        dx, dy = math.cos(a), math.sin(a)
-        inner.append((sx + dx * reach * 0.7, sy + dy * reach * 0.7))
-        outer.append((sx + dx * reach, sy + dy * reach))
+    if path:
+        for bone in path:
+            dx, dy = bone.dir
+            inner.append((bone.start[0] + dx * reach * 0.55, bone.start[1] + dy * reach * 0.55))
+            outer.append((bone.start[0] + dx * reach, bone.start[1] + dy * reach))
+        steps = len(path) - 1
+    else:
+        a0, a1 = math.atan2(before.dir[1], before.dir[0]), math.atan2(after.dir[1], after.dir[0])
+        turn = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
+        steps = max(4, int(abs(turn) / 0.18))
+        for k in range(steps + 1):
+            t = k / steps
+            sx = before.start[0] + (after.start[0] - before.start[0]) * t
+            sy = before.start[1] + (after.start[1] - before.start[1]) * t
+            a = a0 + turn * t
+            dx, dy = math.cos(a), math.sin(a)
+            inner.append((sx + dx * reach * 0.55, sy + dy * reach * 0.55))
+            outer.append((sx + dx * reach, sy + dy * reach))
     trail = {}
     for k in range(steps):
+        # A crescent: thin where the swing started, widest at the blade, so it reads as the blade's motion.
+        width = 1.0 + 3.2 * (k + 1) / steps
         quad = [inner[k], outer[k], outer[k + 1], inner[k + 1]]
         xs, ys = [q[0] for q in quad], [q[1] for q in quad]
         for y in range(int(min(ys)) - 1, int(max(ys)) + 2):
             for x in range(int(min(xs)) - 1, int(max(xs)) + 2):
                 if (x, y) in color or (x, y) in trail or not _inside(quad, x + 0.5, y + 0.5):
                     continue
-                if _near_path((x + 0.5, y + 0.5), outer) < 1.9:
+                if _near_path((x + 0.5, y + 0.5), outer[k:k + 2]) < width:
                     trail[(x, y)] = fill
     color.update(trail)
 

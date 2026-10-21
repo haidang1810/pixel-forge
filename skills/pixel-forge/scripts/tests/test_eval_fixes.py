@@ -142,6 +142,39 @@ class EvalFixTests(unittest.TestCase):
         self.assertIn("error:", missing.stderr)
         self.assertNotIn("Traceback", missing.stderr)
 
+    def test_vector_bake_and_paint(self):
+        temp = Path(tempfile.mkdtemp())
+        spec = humanoid()
+        spec["anims"] = [{"preset": "idle", "frames": 2}]
+        source = write(temp, "spec.json", spec)
+        baked = temp / "baked.json"
+        result = run("rig2d.py", source, "--out", temp / "vec", "--bake", baked)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        doc = json.loads(baked.read_text(encoding="utf-8"))
+        self.assertIn("cutout", doc)
+        self.assertNotIn("materials", doc)
+        names = {layer["name"] for layer in doc["cutout"]}
+        self.assertTrue({"torso", "head", "thigh_n", "upper_f"} <= names)
+        self.assertEqual(run("rig2d.py", baked, "--out", temp / "cut").returncode, 0)
+        a, b = opened(temp / "vec" / "idle.png"), opened(temp / "cut" / "idle.png")
+        same = sum(1 for p, q in zip(a.getdata(), b.getdata()) if p == q)
+        # The baked character looks like the vector one (rotated layers differ by a few pixels).
+        self.assertGreater(same / (a.width * a.height), 0.8)
+        head = next(l for l in doc["cutout"] if l["name"] == "head")
+        x, y = head["origin"]
+        inside = next((x + i, y + j) for j, row in enumerate(head["rows"]) for i, ch in enumerate(row) if ch != ".")
+        edits = write(temp, "edits.json", [{"layer": "head", "color": "#FF00FF", "pixels": [list(inside), [0, 0]]}])
+        painted = temp / "painted.json"
+        result = run("paint_layers.py", baked, edits, "--out", painted)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        doc2 = json.loads(painted.read_text(encoding="utf-8"))
+        symbol = next(k for k, v in doc2["palette"].items() if v == "#FF00FF")
+        head2 = next(l for l in doc2["cutout"] if l["name"] == "head")
+        self.assertEqual(head2["origin"], head["origin"])  # [0, 0] is outside the head: not grown
+        self.assertIn(symbol, "".join(head2["rows"]))
+        self.assertEqual(run("paint_layers.py", baked, write(temp, "bad.json", [{"layer": "nope", "color": "a", "pixels": []}]),
+                             "--out", temp / "x.json").returncode, 2)
+
     def test_ideas_are_fresh_unless_seeded(self):
         roll = lambda *a: json.loads(run("ideas.py", "--count", 2, *a).stdout)
         a, b = roll(), roll()

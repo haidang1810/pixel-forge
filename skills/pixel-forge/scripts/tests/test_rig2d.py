@@ -267,8 +267,9 @@ class Rig2dTests(unittest.TestCase):
             spec["anims"] = [{"preset": "idle", "frames": 1}]
             result, out = self.run_cli(spec)
             self.assertEqual(result.returncode, 0, result.stderr)
-            box = opened(out / "idle" / "frame-00.png").getbbox()
-            widths[build] = box[2] - box[0]
+            image = opened(out / "idle" / "frame-00.png")
+            box = image.getbbox()
+            widths[build] = sum(1 for c in image.getdata() if c[3])  # filled area: a bulky body covers more
             self.assertEqual(box[3], 39, f"{build} feet should rest on the ground row")
         self.assertGreater(widths["bulky"], widths["slim"])
         bad = humanoid(); bad["build"] = "huge"

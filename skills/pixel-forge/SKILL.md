@@ -49,12 +49,29 @@ Use `scripts/rig2d.py` for side-view characters and animated sprites; do not han
 1. Pick the rig and canvas, leaving room for reach (weapons, tails, gallop, wings). The rigs are `humanoid`, `chibi`, `quadruped`, `bird`, `serpent` and `slime`. Apply the identity choices above: `build`, `motion`, `style`, `pose_offset`, and distinctive parts such as silhouette features, accent colors and a readable face. Each rig's default parts and the materials they need are in the *Default parts* table of `rig.md`; weapons are extras on the `weapon_n` bone.
    - Presets: each rig has `idle`, a move, `attack`, `hurt` and `die`, and the preset packs add about 70 more (`run`, `jump`, `cast`, `block`, `sit`, `sleep`, `howl`, `glide`, `spit` and others). The full list per rig is under *Preset packs* in `rig.md`. Chained poses come in pairs: play `sit` once, then loop `sit_idle`; a humanoid plays `sleep` once, then loops `sleep_idle`; a quadruped plays `lie_down` once, then loops `sleep`.
 2. Choose the quality path and say which one:
-   - **Vector parts**: shapes on bones, auto-shaded. This is quick and clean, good for prototypes and simple mobs.
+   - **Vector parts**: shapes on bones, shaded automatically as lit volumes. Quick and clean; with good materials, groups and a strong face it reaches final quality for mobs.
    - **Cutout layers**: pixel regions painted once in the rest pose with `draw` ops, then split onto the bones automatically. This is the path toward final art.
 3. Build colors from base colors with hue-shifted ramps (`{"base": "#RRGGBB"}` materials or `palette_gen`) rather than picking shades by hand. For final art, turn on `"style": {"polish": true}` (cutout characters: `"style": {"polish": {"aa": true, "smear": true}}`), add `texture` to parts where the material calls for it (fur, scales, cloth, metal), and give `motion` some `follow`.
-4. Render. Inspect `contact.png` and at least one enlarged key frame per animation (the extremes of a stride or a swing). Check silhouette, readability, limbs tangling, parts detaching, and edge clipping. Run `scripts/lint.py OUT_DIR` and fix the findings that are real problems.
-5. Correct the parts or the posture first. Only then fix the key frames by hand with `touchups` (frame numbers are 0-based, as in the file names). Expect three to five rounds; stop when no concrete issue remains. Put one-pixel eyes and highlights in `stamps`, which are never rotated, even on cutout characters: single pixels painted into a rotating layer can vanish. An anim entry can carry its own `stamps` (closed eyes while sleeping) and `z` (draw order for that animation).
+4. Render, then run `python SKILL_DIR/scripts/review.py OUT_DIR --out review.png` and look at it: key frames of every animation enlarged, plus the animation at 1x and 2x as a player sees it. Run `scripts/lint.py OUT_DIR` and fix the findings that are real problems.
+5. Critique and correct until the asset meets the quality bar below. Fix the parts, colors or posture first, and only then the key frames by hand with `touchups` (frame numbers are 0-based, as in the file names). Put one-pixel eyes and highlights in `stamps`, which are never rotated, even on cutout characters: single pixels painted into a rotating layer can vanish. An anim entry can carry its own `stamps` (closed eyes while sleeping) and `z` (draw order for that animation).
 6. Deliver the sheets, `animation.json`, a preview GIF made with `showcase.py`, and the spec. State the frame size, frame counts, timings, and the visible limitations.
+
+## Quality bar and critique loop
+
+Judge the render the way a pixel-art lead would, at 1x and 2x as well as enlarged. Score each criterion from 1 to 10, where 8 means "ships in a good commercial indie game":
+1. **Silhouette:** recognizable at 1x; distinct features (ears, snout, weapon, hat) do not fuse into one blob.
+2. **Form:** each body reads as a lit volume: a light side, a shadow side with a core shadow, and no flat fills or pillow shading.
+3. **Clusters:** deliberate clusters of 2+ pixels; no stray specks, banding or jaggies; no dark lines between parts of one body.
+4. **Color and value:** adjacent parts differ clearly in value (a near arm against the torso, legs against each other, skin against cloth), with a small hue-shifted palette.
+5. **Design:** appealing proportions; the face has an eye with a socket or brow and a mouth line; gear is big enough to read (at least 3-4 pixels).
+6. **Animation:** readable key poses, weight and arcs; weapons stay attached to the hand; effects connect to the motion; nothing pops or detaches.
+
+After each render, write the six scores honestly, name the weakest criterion with the frame and part, fix that, and render again. Repeat until every criterion is 8 or more, or until six rounds pass; then say which criteria fell short and why. Common fixes:
+- muddy value: push a ramp's base lighter or darker (`{"base": ...}`) so neighbors differ by about 20% in brightness; give the near arm or sleeve a different material from the torso;
+- segmented body: put parts of one body in one `group`;
+- noise: remove `texture` from small parts, and drop single-pixel decorations that are not eyes or highlights;
+- weak face: an eye stamp with a dark socket or brow row above it, and a 2-3 pixel mouth line;
+- small canvas: characters with gear read better at 56-64 pixels than at 32-40.
 
 ## Tool loop
 

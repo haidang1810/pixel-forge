@@ -94,7 +94,7 @@ All characters face right, in side view. Angles are degrees.
   - `weapon_n` (the held item).
 
   Each also comes in an `_f` version. `_n` is the near side and `_f` the far side, which is darker and drawn behind the body.
-- **Weapons:** no weapon is drawn by default. Attach one as an extra on `weapon_n`, whose `u` runs from the hand out along the blade and whose `+v` is the blade's leading edge: `{"name": "sword", "bone": "weapon_n", "shape": "poly", "mat": "steel", "z": 70, "points": [[-2, -1], [14, -1], [16, 0], [14, 1], [-2, 1]]}`. At rest `grip_n` is 110, so the blade stands up and slightly forward from the hand, as if held ready. Attack presets swing it through `grip_n`, and the `smear` polish pass traces its tip. A shield goes on `fore_n` or `hand_n` as an extra.
+- **Weapons:** no weapon is drawn by default. Attach one as an extra on `weapon_n`, whose `u` runs from the hand out along the blade and whose `+v` is the blade's leading edge: `{"name": "sword", "bone": "weapon_n", "shape": "poly", "mat": "steel", "z": 70, "points": [[-2, -1], [14, -1], [16, 0], [14, 1], [-2, 1]]}`. At rest `grip_n` is 60, so the blade points forward from the hand, clear of the face. Attack presets swing it through `grip_n`, and the `smear` polish pass traces its tip. A shield goes on `fore_n` or `hand_n` as an extra.
 - **Joints:** `lean`, `head`, `hip_*`, `knee_*`, `ankle_*`, `sh_*`, `el_*`, `grip_*`. Limb angle 0 points straight down, and positive turns toward the facing side.
 - **Presets:**
   - `idle` takes `frames`, `ms` and `breath`;
@@ -184,6 +184,7 @@ At the defaults the presets are unchanged. Give every character a personality th
 - `shades`: 2, 3 or 4 tones per material (4 uses a material's highlight color, if it has one).
 - `dither`: checkers the boundary between two tones.
 - `light`: `upper-front` (the default), `upper-back`, `top`, `front`, `back`, or degrees (0 from the facing side, 90 from straight above).
+- `shading`: `volume` (the default) lights every body as one volume: parts take a round height profile, sit on what is under them, and blend within a `group`, so a near limb reads by its shading edge rather than a drawn line, with a reflected-light rim on the shadow side. `part` shades each part on its own (the older, flatter look).
 
 `shades`, `dither` and `light` apply to vector parts. Cutout layers keep their painted shading; `outline` applies to both. Share one style across all the assets of a game.
 
@@ -260,8 +261,11 @@ Here `u` runs along the bone from its start, and `v` is perpendicular to it. For
 - `group`: parts in one group are drawn as one piece, with no line between them.
 - `far: true`: draws the part darker.
 - `hidden: true`: removes a rig part.
+- `lag` (0–1): secondary motion. The part swings against its bone's turn since the previous frame, around `pivot` `[u, v]` (default: its first point, or `at`), so ears, hair, tails, capes and antennae trail behind the motion. Loops wrap, so frame 0 lags from the last frame. Use 0.6–1 for floppy parts.
 
-`stamps` are small unrotated pixel rows placed at a bone point, used for eyes, mouths and slits. Vector parts are fast to author and animate cleanly, but they look generic. Use them for prototypes and simple mobs.
+`stamps` are small unrotated pixel rows placed at a bone point, used for eyes, mouths and slits. Size them to the head: at 64-pixel characters an eye is about 2×2 with a dark brow row above it, and a mouth is a 3–4 pixel line with 1–2 teeth. Give `hurt`, `die` and `attack` their own `stamps` (shut or narrowed eyes, open mouth) through the anim entry.
+
+Near limbs (`_n` bones) keep a dark inner contour where they cross a part of another material, so an arm stays readable over the torso.
 
 ## Cutout layers (higher quality)
 

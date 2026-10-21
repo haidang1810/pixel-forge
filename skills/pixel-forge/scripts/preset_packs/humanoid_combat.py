@@ -50,13 +50,13 @@ def thrust(ms=1.0, **rest):
     guard = _guard(rest)
     pull = _p(rest, sh_n=-35, el_n=115, grip_n=10, sh_f=10, el_f=30, lean=-4, head=-2,
               hip_n=18, knee_n=20, hip_f=-14, knee_f=12, dx=-1)
-    lunge = _p(rest, sh_n=88, el_n=0, grip_n=2, sh_f=-35, el_f=20, lean=14, head=-4,
-               hip_n=40, knee_n=38, hip_f=-32, knee_f=2, dx=1, smear="weapon_n")
+    lunge = _p(rest, sh_n=88, el_n=0, grip_n=2, sh_f=-35, el_f=20, lean=16, head=-4,
+               hip_n=44, knee_n=40, hip_f=-36, knee_f=2, dx=3, smear="weapon_n")
     hold = dict(_calm(lunge), lean=15)
     retract = _p(rest, sh_n=20, el_n=75, grip_n=40, sh_f=-15, el_f=25, lean=6,
                  hip_n=22, knee_n=20, hip_f=-18, knee_f=8, dx=1)
     # pull is keyed twice: with follow-through the first copy is the in-between, the second the held pose.
-    return _out([(guard, 50), (pull, 50), (pull, 70), (lunge, 50), (hold, 140), (retract, 70), (guard, 60)], ms, rest)
+    return _out([(guard, 60), (pull, 70), (pull, 120), (lunge, 50), (hold, 140), (retract, 80), (guard, 70)], ms, rest)
 
 
 def combo(ms=1.0, **rest):
