@@ -685,7 +685,8 @@ def personalize(frames, family, motion, loop=False):
     keys = sorted({k for pose, _ in frames for k, v in pose.items()
                    if k not in SPECIAL_KEYS and isinstance(v, (int, float))})
     rng = random.Random(seed) if seed is not None else None
-    quirks = {k: (rng.uniform(-3, 3), rng.uniform(0.85, 1.15)) for k in keys if k not in ("dx", "dy")} if rng else {}
+    # Quirks are angle offsets, so they only apply to joint angles (never to stretch, dx or dy).
+    quirks = {k: (rng.uniform(-3, 3), rng.uniform(0.85, 1.15)) for k in keys if k not in LINEAR_KEYS} if rng else {}
     out = []
     for pose, ms in frames:
         new = dict(pose)

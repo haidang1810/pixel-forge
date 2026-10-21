@@ -131,7 +131,7 @@ def paint_operation(image, operation, palette, origin, where):
 
 def render_document(document):
     """Return a native RGBA image and factual report, or raise ValueError."""
-    object_keys(document, {"version", "size", "palette", "layers", "meta"}, "document")
+    object_keys(document, {"version", "size", "palette", "layers", "meta", "outline"}, "document")
     if type(document.get("version")) is not int or document["version"] != 1:
         raise ValueError("version: expected 1")
     size = pair(document.get("size"), "size", 1)
@@ -185,6 +185,19 @@ def render_document(document):
             canvas = Image.alpha_composite(canvas, image)
         layer_report.append({"name": name, "visible": visible, "bbox": image.getbbox()})
 
+    if "outline" in document:
+        # Optional automatic outline: every transparent pixel touching the art (4-neighbour) gets the
+        # outline symbol's color, so a whole set shares one consistent outline without hand-drawing it.
+        symbol = document["outline"]
+        if not isinstance(symbol, str) or symbol not in palette or palette[symbol][3] == 0:
+            raise ValueError("outline: expected an opaque palette symbol")
+        px = canvas.load()
+        w, h = size
+        edge = [(x, y) for y in range(h) for x in range(w) if px[x, y][3] == 0 and any(
+            0 <= x + dx < w and 0 <= y + dy < h and px[x + dx, y + dy][3]
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
+        for point in edge:
+            px[point] = palette[symbol]
     raw = iter(canvas.tobytes())
     counts = Counter(zip(raw, raw, raw, raw))
     opaque = sum(count for rgba, count in counts.items() if rgba[3])

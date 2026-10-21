@@ -16,6 +16,7 @@ Checks (warnings, not failures; judge them against the intent):
 """
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -95,7 +96,8 @@ def frames_of(folder):
     for name, anim in manifest["animations"].items():
         with Image.open(folder / anim["sheet"]) as sheet:
             sheet = sheet.convert("RGBA")
-            yield name, [sheet.crop((x, y, x + w, y + h)) for x, y, w, h in (f["rect"] for f in anim["frames"])]
+            yield name, [(sheet.crop((x, y, x + w, y + h)), f.get("effects", []))
+                         for f in anim["frames"] for x, y, w, h in [f["rect"]]]
 
 
 GROUNDED = {"idle", "walk", "attack", "hurt"}
@@ -120,7 +122,16 @@ def lint_path(path):
     report = {}
     if path.is_dir():
         for name, frames in frames_of(path):
-            entries = [lint_frame(f) for f in frames]
+            entries = []
+            for image, effects in frames:
+                metrics, findings = lint_frame(image)
+                # Intended effects are not defects: a flash frame has no lighting, a dissolve is speckled
+                # by design and may end empty.
+                if "flash" in effects:
+                    findings = [f for f in findings if not f.startswith("lighting")]
+                if "dissolve" in effects:
+                    findings = [f for f in findings if not f.startswith(("stray", "empty", "lighting"))]
+                entries.append((metrics, findings))
             notes = summarize(entries)
             bottoms = {m.get("bbox", [0, 0, 0, 0])[3] for m, _ in entries if m.get("opaque")}
             if name in GROUNDED and len(bottoms) > 1:
@@ -141,6 +152,9 @@ def main(argv=None):
     full = {}
     total = 0
     for p in args.paths:
+        if not Path(p).exists() or (Path(p).is_dir() and not (Path(p) / "animation.json").is_file()):
+            print(f"error: {p}: expected a PNG or a folder with animation.json", file=sys.stderr)
+            return 2
         report = lint_path(p)
         full[str(p)] = report
         for name, entry in report.items():

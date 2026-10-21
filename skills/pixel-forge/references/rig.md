@@ -13,6 +13,8 @@ python SKILL_DIR/scripts/gridview.py OUT_DIR/run/frame-01.png --out grid.png --s
 python SKILL_DIR/scripts/dumpframe.py SPEC.json OUT_DIR/run/frame-01.png --box 16 30 48 47
 python SKILL_DIR/scripts/lint.py OUT_DIR
 python SKILL_DIR/scripts/palette_tools.py "#4F7A34" --tones 4
+python SKILL_DIR/scripts/palette_tools.py --kit endesga-32
+python SKILL_DIR/scripts/ideas.py --role mob --rig humanoid
 ```
 
 A render writes the following into `OUT_DIR`:
@@ -22,6 +24,16 @@ A render writes the following into `OUT_DIR`:
 - `<anim>/frame-XX.json`: each frame in the v1 format, so `pixel_art.py patch` can edit it.
 - `animation.json`: per frame, the rect in the sheet, the milliseconds and the `pivot`, which is the hip (skeleton root) in frame pixels. Align frames and animations in the engine by the pivot, because an animation may be shifted inside its frame to fit (for example a fall).
 - `contact.png`: an overview of all frames.
+
+The manifest looks like this. `effects` appears only on frames that use `flash`, `dissolve` or `smear`, and `loop` is false for one-shot animations (attack, hurt, die):
+
+```json
+{"size": [48, 48], "animations": {"attack": {"sheet": "attack.png", "loop": false, "frames": [
+  {"rect": [0, 0, 48, 48], "ms": 120, "pivot": [19, 33]},
+  {"rect": [48, 0, 48, 48], "ms": 60, "pivot": [19, 33], "effects": ["smear"]}]}}}
+```
+
+Frame numbers are 0-based everywhere: `frame-00.png` is the first frame, and `touchups` and lint findings count the same way.
 
 Every frame is checked to reproduce exactly through `pixel_art.py`. A spec error exits with code 2 and writes nothing. `--out` must not be the folder that holds the spec. Outputs there are replaced on rerun. A warning reports art that touches the canvas edge.
 
@@ -53,7 +65,23 @@ This example only shows the syntax; it is not an art template.
 - `root_x`: the horizontal position of the hip as a fraction of the width. The lowest foot is always planted on row `h-3`.
 - `pose_offset`: added to every frame and to the rest pose, giving the character its own posture (for example `"lean": 12` for a hunch). `dx` and `dy` shift the whole character, art included.
 - `shadow`: `{"color": "#RRGGBB", "rx": 6, "shrink": 0.06}` draws a 2-row ground shadow under the hip. It shrinks by `shrink` × `rx` per pixel of lift and never covers the art. Use it for floating or jumping characters. Games often want the shadow as a separate sprite, in which case leave it out.
-- `anims`: preset entries. Any other field in an entry is passed to the preset: its parameters, or a fixed joint value. `name` lets you list the same preset twice. An entry's own `pose_offset` replaces the character's value for each key it names, so give the full value (for example `"dy": -3`, not a change relative to the character's `dy`).
+- `anims`: preset entries. Any other field in an entry is passed to the preset: its parameters, or a joint value. A joint value sets the base pose the preset starts from (for example `"grip_n": 70` to hold a dagger forward while running), but a keyframe that moves the same joint wins over it. To shift a joint on every frame, use the entry's `pose_offset` instead (for example `"pose_offset": {"head": 20}` in `die`). `name` lets you list the same preset twice. An entry's own `pose_offset` replaces the character's value for each key it names, so give the full value (for example `"dy": -3`, not a change relative to the character's `dy`).
+  - `stamps` in an entry replaces the character's stamps for that animation only (closed eyes in `sleep`, an open mouth in `attack`).
+  - `z` in an entry changes the draw order of named parts for that animation only, for example `{"preset": "wave", "z": {"upper_f": 60, "fore_f": 61, "hand_f": 62}}` brings the far arm in front.
+
+**Default parts.** Without `parts` or a cutout, each rig draws these vector parts, so the spec must give these materials (or hide the parts):
+
+| Rig | Parts | Materials |
+|---|---|---|
+| `humanoid`, `chibi` | `torso`, `head`, and `thigh`, `shin`, `foot`, `upper`, `fore`, `hand` with `_n` and `_f` | `body`, `skin`, `legs`, `boots` |
+| `quadruped` | `body`, `neck`, `head`, `snout`, `ear`, `tail`, and `upper`, `lower`, `foot`, `paw` with `_bn`, `_bf`, `_fn`, `_ff` | `fur`, `paw` |
+| `bird` | `body`, `neck`, `head`, `beak`, `tail`, `wing`/`wingtip` and `thigh`, `shin`, `foot` with `_n` and `_f` | `body`, `wing`, `beak`, `leg` |
+| `serpent` | `neck`, `head`, `jaw`, `seg1`–`seg8` | `body` |
+| `slime` | `body` | `body` |
+
+Draw order (`z`) is the same pattern on every rig: far limbs 10–17, far legs and tail about 20, body 30, neck 31–32, head 40 (snout, beak and ears just above), near legs 50–57, near arm or wing 60–63. Give extras a `z` that slots between these, for example hair at 41, a back cape at 25 and a weapon at 70. Shapes and sizes of every default part are in `RIGS` in `scripts/rig_presets.py`; the humanoid head, for instance, is an ellipse at `[5.6, 0.8]` with `rx` 5.6 and `ry` 6. Stamp `at` uses the same bone `[u, v]` coordinates as parts.
+
+Restyle a default part with `"parts": {"head": {"mat": "skin", "r": 6}}`, remove it with `"hidden": true`, and add new pieces (hair, horns, a weapon) as `extras`.
 
 All characters face right, in side view. Angles are degrees.
 
@@ -66,6 +94,7 @@ All characters face right, in side view. Angles are degrees.
   - `weapon_n` (the held item).
 
   Each also comes in an `_f` version. `_n` is the near side and `_f` the far side, which is darker and drawn behind the body.
+- **Weapons:** no weapon is drawn by default. Attach one as an extra on `weapon_n`, whose `u` runs from the hand out along the blade and whose `+v` is the blade's leading edge: `{"name": "sword", "bone": "weapon_n", "shape": "poly", "mat": "steel", "z": 70, "points": [[-2, -1], [14, -1], [16, 0], [14, 1], [-2, 1]]}`. At rest `grip_n` is 110, so the blade stands up and slightly forward from the hand, as if held ready. Attack presets swing it through `grip_n`, and the `smear` polish pass traces its tip. A shield goes on `fore_n` or `hand_n` as an extra.
 - **Joints:** `lean`, `head`, `hip_*`, `knee_*`, `ankle_*`, `sh_*`, `el_*`, `grip_*`. Limb angle 0 points straight down, and positive turns toward the facing side.
 - **Presets:**
   - `idle` takes `frames`, `ms` and `breath`;
@@ -93,7 +122,7 @@ All characters face right, in side view. Angles are degrees.
   - `hurt` (flash, rear back, tail tucked) takes `ms`;
   - `die` (flash, buckle, drop, lie on the side with the legs out) takes `ms` and `fade`.
 
-A full mob set is idle, a move (walk, run or float), attack, hurt and die. Death holds its last frame for 600 ms; play it once in the game. Preview GIFs loop every animation.
+A full mob set is idle, a move (walk, run or float), attack, hurt and die. Death holds its last frame for about 600 ms (scaled by `motion`); play it once in the game, as the manifest's `loop: false` says. Long dangling extras (ears, tails, capes) can touch the ground in the lying pose; check the last `die` frame. Preview GIFs loop every animation.
 
 ### Bird
 
@@ -111,7 +140,8 @@ A full mob set is idle, a move (walk, run or float), attack, hurt and die. Death
 
 - **Bones:** `body`, which points up from the bottom centre and carries the squash. Default part material: `body`; put eyes and highlights in `stamps` and `extras` on `body`.
 - **Joints:** `stretch` (1 normal, > 1 tall and thin, < 1 squashed flat and wide) and `lean`.
-- **Presets:** `idle` (wobble), `hop` (squash, launch, arc, land), `attack` (lunge stretched forward), `hurt`, `die` (melt into a puddle).
+- **Rest geometry:** the `body` bone is 12 pixels long, pointing up from the bottom centre, and the default body part is an ellipse about 9 pixels to each side. Place stamps and extras in that frame: `u` 0 is the ground contact, `u` 12 the top, and `+v` is forward.
+- **Presets:** `idle` (wobble), `hop` (squash, launch, arc, land; `height` sets the jump), `attack` (lunge stretched forward), `hurt`, `die` (melt into a puddle). A higher `motion.weight` (or lower `energy`) lowers the hop; `exaggeration` deepens the squash and stretch.
 
 ### Squash and stretch
 
@@ -184,7 +214,7 @@ A vector part or extra can carry `"texture"`: `fur`, `scales`, `cloth`, `metal` 
 - `edge`: clipping;
 - `ground`: grounded frames on different rows.
 
-These are warnings to judge against the intent. Countershading, such as a dark back and a light belly, legitimately triggers `lighting`. Run lint before delivering and fix what is a real problem.
+These are warnings to judge against the intent. Countershading, such as a dark back and a light belly, legitimately triggers `lighting`. Intentional one-pixel stamps (eyes, tusks) and texture specks are reported as `stray`; leave those. Run lint before delivering and fix what is a real problem.
 
 ## Preset packs
 
@@ -272,7 +302,7 @@ For final art, paint the character once, in its rest pose, as pixel regions. Eac
    ```json
    "touchups": {"run": {"1": [{"color": "k", "pixels": [[29, 40], [29, 41]]}, {"erase": [[12, 30]]}]}}
    ```
-   Use `dumpframe.py` to read exact coordinates and symbols, and `gridview.py` for a visual check.
+   Use `dumpframe.py` to read exact coordinates and symbols (it needs a cutout `palette`; for vector characters use `gridview.py`), and `gridview.py` for a visual check.
 
 To edit a layer pixel by pixel, freeze the drawing with `--bake BAKED.json`. This writes a copy of the spec in which every region becomes `cutout` rows: `{"name", "bone", "origin", "z", "group", "rows"}`, plus `{"from", "bone", "far"}` entries for mirrored layers. `origin` is the layer's top-left corner in the rest pose, and the pivot is the bone's rest start. `draw` and `cutout` can be mixed in one spec; drawn layers come first, so `cutout` entries can reuse them with `from`.
 

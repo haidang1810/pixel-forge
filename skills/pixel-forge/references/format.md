@@ -23,6 +23,7 @@ Every row character must match a palette key exactly. The renderer reports the r
 - `size`: `[width, height]`, integers 1–512. For larger scenes, create tiles or components; this renderer targets small art.
 - `palette`: nonempty map from one visible ASCII character to `#RRGGBB` or `#RRGGBBAA`. Alpha must be `00` or `FF`. Fully transparent colors normalize to zero RGBA. `.` is an ordinary palette key; define it as transparent when using dots in rows.
 - `layers`: nonempty array in back-to-front order. Names must be unique.
+- `outline`: optional opaque palette symbol. After all layers are composited, every transparent pixel that touches an opaque one (up, down, left or right) takes this color, so layers can be drawn without their own outline. Leave a one-pixel margin on the canvas for it. `palette_tools.py --kit SLUG` prints a palette whose `o` is the kit's outline.
 - `meta`: optional object for your brief, palette roles, pivot, and notes. It is copied to the report and does not affect rendering. Frame timing and engine import settings are not inferred.
 
 ## Layer

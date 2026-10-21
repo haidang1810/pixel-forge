@@ -528,6 +528,15 @@ def apply_touchups(image, spec, anim, index):
     return image
 
 
+def far_tone(darken, c, steps, t, outline):
+    """Darken a far-side pixel, but never all the way to the outline color (it would read as a hole)."""
+    for n in range(steps, 0, -1):
+        tone = darken(c, n, t)
+        if tone != outline:
+            return tone
+    return c
+
+
 def make_darken(spec, outline, materials=False):
     """Darken a color by stepping down its palette ramp, so shading never leaves the palette.
 
@@ -636,7 +645,8 @@ def _render(spec, rig, pose, parts, previous=None):
         if part.get("shape") == "sprite":
             painted = part["sprite"].paint(bones[part["bone"]], (w, h))
             if part.get("far"):
-                painted = {p: darken(c, spec.get("far_steps", 2), spec.get("far_shade", 0.35)) for p, c in painted.items()}
+                steps = spec.get("far_steps", 2)
+                painted = {p: far_tone(darken, c, steps, spec.get("far_shade", 0.35), outline) for p, c in painted.items()}
         else:
             inside, box, normal = part_shape(part, bones)
             mask = rasterize(inside, box, (w, h))
@@ -829,14 +839,27 @@ def prepare_spec(spec):
         raise ValueError("spec: expected a JSON object")
     spec = palette_tools.expand_palette(spec)
     if "palette_kit" in spec:
-        palette_tools.kit(spec["palette_kit"])  # unknown kits fail early with the list of names
+        kit = palette_tools.kit(spec["palette_kit"])  # unknown kits fail early with the list of names
+        if "outline" not in spec:
+            spec = dict(spec, outline=kit["outline"])
     if isinstance(spec.get("materials"), dict):
         spec = dict(spec, materials=palette_tools.expand_materials(spec["materials"], spec.get("palette_kit")))
     return spec
 
 
-def validate_spec(spec):
-    """Reject a spec with an actionable message before anything is written."""
+def validate_spec(spec, rest_only=False):
+    """Reject a spec with an actionable message before anything is written.
+
+    rest_only: for `--rest` before any art exists; parts, materials and anims are not required yet."""
+    if rest_only:
+        spec = dict(spec)
+        spec.setdefault("outline", "#000000")
+        spec.setdefault("anims", [{"preset": "idle"}])
+        if not is_cutout(spec) and not spec.get("materials"):
+            # No art yet: hide every rig part so only the skeleton is checked and drawn.
+            rig_name = spec.get("rig", "humanoid")
+            if rig_name in presets.RIGS:
+                spec["parts"] = {n: {"hidden": True} for n in presets.RIGS[rig_name]["parts"]}
     if not isinstance(spec, dict):
         raise ValueError("spec: expected a JSON object")
     unknown = set(spec) - SPEC_KEYS
@@ -845,6 +868,8 @@ def validate_spec(spec):
     size = spec.get("size")
     if not (isinstance(size, list) and len(size) == 2 and all(type(n) is int and 8 <= n <= 256 for n in size)):
         raise ValueError("size: expected [width, height], integers 8..256")
+    if "outline" not in spec:
+        raise ValueError("outline: required, a #RRGGBB color (a palette_kit supplies its own when this is left out)")
     if not is_hex(spec.get("outline")):
         raise ValueError("outline: expected #RRGGBB")
     rig_name = spec.get("rig", "humanoid")
@@ -856,6 +881,11 @@ def validate_spec(spec):
         raise ValueError("anims: expected a nonempty list")
     names = set()
     for i, anim in enumerate(anims):
+        if isinstance(anim, dict) and "z" in anim and not (isinstance(anim["z"], dict) and all(
+                isinstance(v, (int, float)) for v in anim["z"].values())):
+            raise ValueError(f"anims[{i}].z: expected {{part or layer name: draw order}}")
+        if isinstance(anim, dict) and "stamps" in anim and not isinstance(anim["stamps"], list):
+            raise ValueError(f"anims[{i}].stamps: expected a list of stamps (it replaces the spec's stamps)")
         preset = anim.get("preset") if isinstance(anim, dict) else None
         if preset not in presets.ANIMS[family]:
             raise ValueError(f"anims[{i}].preset: {preset!r} is not a {family} preset; choose from {sorted(presets.ANIMS[family])}")
@@ -977,6 +1007,21 @@ def validate_spec(spec):
                         raise ValueError(f"touchups.{anim}.{index}: pixel {[x, y]} is outside the canvas")
 
 
+# Anim entry fields handled by the renderer; everything else is passed to the preset.
+ANIM_KEYS = ("preset", "name", "pose_offset", "motion", "stamps", "z")
+
+
+def for_animation(spec, parts, anim):
+    """Per-animation overrides: "stamps" replaces the spec's stamps (closed eyes for sleep, an open
+    mouth for a bite); "z" maps part or layer names to a new draw order (a leg moving behind the head
+    when lying down)."""
+    anim_spec = dict(spec, stamps=anim["stamps"]) if "stamps" in anim else spec
+    if "z" not in anim:
+        return anim_spec, parts
+    moved = [dict(p, z=anim["z"].get(p["name"], p["z"])) for p in parts]
+    return anim_spec, sorted(moved, key=lambda p: p["z"])
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("spec")
@@ -989,8 +1034,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
-        spec = prepare_spec(json.loads(Path(args.spec).read_text(encoding="utf-8")))
-        validate_spec(spec)
+        spec = prepare_spec(json.loads(Path(args.spec).read_text(encoding="utf-8-sig")))
+        validate_spec(spec, rest_only=args.rest)
     except (OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -1010,7 +1055,11 @@ def main(argv=None):
         target.write_text(json.dumps(baked, indent=1), encoding="utf-8")
         print(f"wrote {target}")
     if args.rest:
-        write_rest_sheet(spec, rig, out, args.scale)
+        rest_spec = dict(spec)
+        rest_spec.setdefault("outline", "#000000")
+        if not is_cutout(rest_spec) and not rest_spec.get("materials"):
+            rest_spec["parts"] = {n: {"hidden": True} for n in rig["parts"]}
+        write_rest_sheet(rest_spec, rig, out, args.scale)
         return
     parts = build_parts(spec, rig)
     v1 = load_v1_renderer()
@@ -1019,19 +1068,20 @@ def main(argv=None):
     rows_for_contact = []
     for anim in spec["anims"]:
         name = anim.get("name", anim["preset"])
-        params = {k: v for k, v in anim.items() if k not in ("preset", "name", "pose_offset", "motion")}
+        params = {k: v for k, v in anim.items() if k not in ANIM_KEYS}
         family = rig.get("family", "humanoid")
+        looping = anim["preset"] in presets.LOOPING_BY_FAMILY.get(family, set())
         frames = presets.personalize(presets.anim(family, anim["preset"], **params), family,
-                                     {**spec.get("motion", {}), **anim.get("motion", {})},
-                                     loop=anim["preset"] in presets.LOOPING_BY_FAMILY.get(family, set()))
+                                     {**spec.get("motion", {}), **anim.get("motion", {})}, loop=looping)
         images = []
         (out / name).mkdir(exist_ok=True)
         offset = posture(spec, rig, anim)
+        anim_spec, anim_parts = for_animation(spec, parts, anim)
         drawn = None
         for i, (pose, duration) in enumerate(frames):
             # Character posture (hunch, wide stance...) is added on top of every preset frame.
             pose = {**pose, **{k: pose.get(k, 0) + v for k, v in offset.items()}}
-            image = render_frame(spec, rig, pose, parts, drawn)
+            image = render_frame(anim_spec, rig, pose, anim_parts, drawn)
             drawn = image.info["pose"]
             image = apply_touchups(image, spec, name, i)
             doc = to_v1_document(image, f"{spec.get('name', 'character')} {name} {i}")
@@ -1043,17 +1093,19 @@ def main(argv=None):
             box = image.getbbox()
             if box and (box[0] == 0 or box[1] == 0 or box[2] == w or box[3] == h):
                 print(f"warning: {name} frame {i} touches the canvas edge {box}")
-            images.append((image, duration, image.info["pivot"]))
+            effects = [k for k in ("flash", "dissolve", "smear") if image.info["pose"].get(k)]
+            images.append((image, duration, image.info["pivot"], effects))
         sheet = Image.new("RGBA", (w * len(images), h), (0, 0, 0, 0))
         for i, (image, *_) in enumerate(images):
             sheet.paste(image, (i * w, 0))
         sheet.save(out / f"{name}.png")
         previews = [enlarge(image, args.scale).convert("P", palette=Image.ADAPTIVE) for image, *_ in images]
         previews[0].save(out / f"{name}.preview.gif", save_all=True, append_images=previews[1:],
-                         duration=[d for _, d, _ in images], loop=0, disposal=2)
+                         duration=[d for _, d, *_ in images], loop=0, disposal=2)
         # pivot: the hip (skeleton root) in frame pixels, so an engine can align frames and animations.
-        manifest["animations"][name] = {"sheet": f"{name}.png", "frames": [
-            {"rect": [i * w, 0, w, h], "ms": d, "pivot": pivot} for i, (_, d, pivot) in enumerate(images)]}
+        manifest["animations"][name] = {"sheet": f"{name}.png", "loop": looping, "frames": [
+            dict({"rect": [i * w, 0, w, h], "ms": d, "pivot": pivot}, **({"effects": fx} if fx else {}))
+            for i, (_, d, pivot, fx) in enumerate(images)]}
         rows_for_contact.append(images)
     (out / "animation.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 

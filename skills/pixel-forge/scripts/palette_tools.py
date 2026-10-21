@@ -5,6 +5,7 @@ Shadows drift toward blue-violet and gain a little saturation; highlights drift 
 and lose saturation, the way pixel artists build ramps by hand instead of only darkening.
 
     python palette_tools.py "#4F7A34" --tones 5        # print a ramp dark -> light
+    python palette_tools.py --kit endesga-32           # a ready palette (symbols + ramps) for static art
 """
 import argparse
 import colorsys
@@ -116,12 +117,35 @@ def expand_palette(spec):
     return dict(spec, palette=palette, ramps=ramps)
 
 
+SYMBOLS = "abcdefghijlmnpqrstuvwxyzABCDEFGHIJKLMNPQRSTUVWXYZ0123456789"
+
+
+def kit_document_palette(slug):
+    """A pixel-art-json palette for a bundled kit: every kit color gets a symbol, "o" is the outline,
+    "." is transparent, and each named ramp is listed as its symbols dark -> light."""
+    k = kit(slug)
+    colors = [c.upper() for c in k["colors"]]
+    palette = {".": "#00000000", "o": k["outline"].upper()}
+    symbol_of = {k["outline"].upper(): "o"}
+    for c, symbol in zip([c for c in colors if c not in symbol_of], SYMBOLS):
+        palette[symbol] = c
+        symbol_of[c] = symbol
+    ramps = {name: "".join(symbol_of[c.upper()] for c in ramp) for name, ramp in k["ramps"].items()}
+    return {"kit": slug, "credit": f"{k['name']} by {k['author']} ({k['url']})", "palette": palette, "ramps": ramps}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("base")
+    parser.add_argument("base", nargs="?", help="base color #RRGGBB for a generated ramp")
     parser.add_argument("--tones", type=int, default=4)
     parser.add_argument("--shift", type=float, default=24)
+    parser.add_argument("--kit", help="print a static-art palette for a bundled kit instead (e.g. endesga-32)")
     args = parser.parse_args(argv)
+    if args.kit:
+        print(json.dumps(kit_document_palette(args.kit), indent=1))
+        return
+    if not args.base:
+        parser.error("give a base color, or --kit SLUG")
     print(" ".join(ramp(args.base, args.tones, args.shift)), " outline:", outline_for(args.base))
 
 

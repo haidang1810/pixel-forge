@@ -20,6 +20,9 @@ def main(argv=None):
     lookup[tuple(int(spec["outline"][i:i + 2], 16) for i in (1, 3, 5))] = "k"
     image = Image.open(args.frame).convert("RGBA")
     x0, y0, x1, y1 = args.box or (0, 0, image.width - 1, image.height - 1)
+    # the box is inclusive; clamp it to the frame instead of failing on an out-of-range corner
+    x0, x1 = max(0, min(x0, x1)), min(image.width - 1, max(x0, x1))
+    y0, y1 = max(0, min(y0, y1)), min(image.height - 1, max(y0, y1))
     print("    " + "".join(str(x // 10) for x in range(x0, x1 + 1)))
     print("    " + "".join(str(x % 10) for x in range(x0, x1 + 1)))
     for y in range(y0, y1 + 1):
