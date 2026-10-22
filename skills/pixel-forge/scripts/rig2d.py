@@ -792,7 +792,7 @@ def render_frame(spec, rig, pose, parts, previous=None, lag_from=None):
     image = _render(spec, rig, pose, parts, previous, lag_from or previous)
     image.info["pose"] = pose  # the grounded pose actually drawn; the next frame's smear starts here
     image.info["pivot"] = [math.floor(c) for c in root_bone(place(spec, rig, pose)).start]
-    if pose.get("flash"):
+    if pose.get("flash", 0) >= 0.5:  # an in-between of a flash frame (0.4) is not a flash
         flash = hex_rgba(spec.get("flash", "#FFFFFF"))
         outline = hex_rgba(spec["outline"])
         for p, c in zip(((x, y) for y in range(image.height) for x in range(image.width)), pixels_of(image)):
@@ -1278,11 +1278,15 @@ def main(argv=None):
     parser.add_argument("--scale", type=int, default=8)
     parser.add_argument("--rest", action="store_true",
                         help="only render the rest pose with a coordinate grid and skeleton, for drawing cutout layers")
+    parser.add_argument("--packs", nargs="+", metavar="DIR",
+                        help="also load preset packs (*.py, see preset_packs/README.md) from these folders")
     parser.add_argument("--bake", metavar="SPEC_OUT",
                         help="write a copy of the spec whose drawn regions are frozen into cutout rows, for pixel edits")
     args = parser.parse_args(argv)
 
     try:
+        for folder in args.packs or []:  # the user's own preset packs, without touching the installed skill
+            presets.load_packs(folder)
         spec = prepare_spec(json.loads(Path(args.spec).read_text(encoding="utf-8-sig")))
         validate_spec(spec, rest_only=args.rest)
     except (OSError, ValueError) as error:
@@ -1345,6 +1349,9 @@ def main(argv=None):
             (out / name / f"frame-{i:02d}.json").write_text(json.dumps(doc, indent=1), encoding="utf-8")
             image.save(out / name / f"frame-{i:02d}.png")
             box = image.getbbox()
+            if box is None and not image.info["pose"].get("dissolve"):
+                print(f"warning: {name} frame {i} is empty: the character left the canvas (a large dy, "
+                      "lift or dx, possibly amplified by motion; try a smaller value or a bigger canvas)")
             if box and (box[0] == 0 or box[1] == 0 or box[2] == w or box[3] == h):
                 print(f"warning: {name} frame {i} touches the canvas edge {box}")
             effects = [k for k in ("flash", "dissolve", "smear") if image.info["pose"].get(k)]

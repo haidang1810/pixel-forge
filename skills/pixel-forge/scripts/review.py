@@ -2,6 +2,8 @@
 """Make one review image: key frames of every animation, enlarged, with a 1x and 2x row for readability.
 
     python review.py OUT_DIR --out review.png [--scale 8] [--frames 4]
+    python review.py PREFIX.anim.json --out review.png      (a pixel_art.py animation)
+    python review.py sword.png potion.png --out review.png  (static art at 1x, 2x, 4x and 8x)
 
 Key frames are the first frame and the frames that differ most from their neighbours (the extremes of
 a stride or a swing). Each row also shows the animation at 1x and 2x, the way a player sees it. Use it
@@ -44,6 +46,13 @@ def key_frames(frames, count):
 
 
 def load(folder):
+    if folder.is_file() or folder.name.endswith(".anim.json"):  # a pixel_art.py animation
+        anim = json.loads(folder.read_text(encoding="utf-8-sig"))
+        strip = folder.with_name(folder.name[:-len(".anim.json")] + ".strip.png")
+        with Image.open(strip) as sheet:
+            sheet = sheet.convert("RGBA")
+            yield strip.stem, [sheet.crop((x, y, x + w, y + h)) for x, y, w, h in (f["rect"] for f in anim["frames"])]
+        return
     manifest = json.loads((folder / "animation.json").read_text(encoding="utf-8-sig"))
     for name, anim in manifest["animations"].items():
         with Image.open(folder / anim["sheet"]) as sheet:
@@ -51,16 +60,54 @@ def load(folder):
             yield name, [sheet.crop((x, y, x + w, y + h)) for x, y, w, h in (f["rect"] for f in anim["frames"])]
 
 
+def review_images(paths, out):
+    """Static art (items, icons, props): each image at 1x, 2x and 4x on a dark game-like background,
+    the sizes a player and an inventory grid show it at, plus an 8x view to inspect clusters."""
+    images = []
+    for path in paths:
+        with Image.open(path) as image:
+            images.append((path.stem, image.convert("RGBA")))
+    rows = []
+    for name, image in images:
+        tiles = [image.resize((image.width * s, image.height * s), Image.NEAREST) for s in (1, 2, 4, 8)]
+        rows.append((name, tiles))
+    width = max(sum(t.width + 8 for t in tiles) for _, tiles in rows) + 8
+    height = sum(14 + max(t.height for t in tiles) + 8 for _, tiles in rows)
+    sheet = Image.new("RGBA", (width, height), (24, 27, 38, 255))
+    draw = ImageDraw.Draw(sheet)
+    y = 0
+    for name, tiles in rows:
+        draw.text((6, y + 2), f"{name}: 1x 2x 4x 8x", fill=(220, 225, 240, 255))
+        y += 14
+        x = 6
+        for t in tiles:
+            sheet.paste(BG, (x, y, x + t.width, y + t.height))
+            sheet.alpha_composite(t, (x, y))
+            x += t.width + 8
+        y += max(t.height for t in tiles) + 8
+    sheet.save(out)
+    print(f"wrote {out}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("folder", help="a rig2d or sheet.py output folder")
+    parser.add_argument("folder", help="a rig2d or sheet.py output folder, or a pixel_art PREFIX.anim.json")
+    parser.add_argument("more", nargs="*", help="more PNGs, when reviewing static art")
     parser.add_argument("--out", required=True)
     parser.add_argument("--scale", type=int, default=8)
     parser.add_argument("--frames", type=int, default=4, help="key frames per animation")
     args = parser.parse_args(argv)
+    if all(f.lower().endswith(".png") for f in [args.folder] + args.more):
+        return review_images([Path(f) for f in [args.folder] + args.more], Path(args.out))
     folder = Path(args.folder)
-    if not (folder / "animation.json").is_file():
-        print(f"error: {folder}: no animation.json", file=sys.stderr)
+    if folder.is_dir() and not (folder / "animation.json").is_file():
+        found = sorted(folder.glob("*.anim.json"))
+        if len(found) == 1:
+            folder = found[0]
+    if not (folder.is_file() and folder.name.endswith(".anim.json")) and not (folder / "animation.json").is_file():
+        print(f"error: {folder}: expected a rig2d/sheet.py folder (animation.json) or a pixel_art PREFIX.anim.json",
+              file=sys.stderr)
         return 2
     rows = []
     for name, frames in load(folder):

@@ -733,7 +733,7 @@ def personalize(frames, family, motion, loop=False):
             base = rest.get(k, 0)
             gain = x
             if k == "dy":
-                gain *= (1.5 - w) * (0.5 + e)
+                gain *= min(1.5, (1.5 - w) * (0.5 + e))  # livelier hops, but never launched off the canvas
             elif k.startswith(BEND):
                 gain *= 0.6 + 0.8 * w
             elif k.startswith(SWING):

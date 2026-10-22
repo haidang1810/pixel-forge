@@ -233,7 +233,7 @@ Beyond the built-in presets above, the packs in `scripts/preset_packs/` add thes
 
 Moves with large `dx` (`knockback`, `dash`, `thrust`, `charge`) and tall or wide poses (`jump`, `rear_up`, lying poses) need room in the canvas; shift the animation with its own `pose_offset` `dx` when a warning reports an edge. Spawn projectiles at the release frame named in the preset's docstring (`spit`, `throw`, `shoot_bow`, `cast`). Personality scales angles the short way round, so write raised limbs and wings close to their rest angle (for example a bird wing at −160 rather than +200).
 
-To add presets, write a pack following `scripts/preset_packs/README.md`.
+To add presets, write a pack following `scripts/preset_packs/README.md`. Keep your own packs outside the skill and load them with `rig2d.py SPEC.json --out OUT --packs MY_PACKS_DIR`. Motion personality scales `dy` by at most 1.5×; a frame that ends up empty prints a warning.
 
 ## Effects and special pose keys
 

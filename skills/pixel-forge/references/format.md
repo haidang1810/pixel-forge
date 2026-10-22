@@ -26,9 +26,17 @@ Every row character must match a palette key exactly. The renderer reports the r
 - `outline`: optional opaque palette symbol. After all layers are composited, every transparent pixel that touches an opaque one (up, down, left or right) takes this color, so layers can be drawn without their own outline. Leave a one-pixel margin on the canvas for it. `palette_tools.py --kit SLUG` prints a palette whose `o` is the kit's outline.
 - `meta`: optional object for your brief, palette roles, pivot, and notes. It is copied to the report and does not affect rendering. Frame timing and engine import settings are not inferred.
 
+- `ramps`: optional list of palette-symbol strings, dark to light (`["kgGl", "kOoy"]`). `shade`, `light`, blend layers and `glow` step colors along them, so tones stay in the palette.
+- `parts`: optional named parts, reused by `stamp` and `scatter`: `{"leaf": {"rows": ["gG", "g."]}}`, or `{"size": [w, h], "layers": [...], "mirror": "x", "outline": "k"}`. Parts share the document palette and may stamp other parts.
+- `mirror`: optional `"x"`, `"y"` or `"xy"`: after compositing, the left (top) half is copied mirrored onto the other half. Draw half of anything symmetric.
+- `glow`: optional list of `{"keys": "Yl", "r": 6, "steps": 2}`: opaque pixels within `r` of a glowing key step up to `steps` lighter along their ramps, with a dithered falloff. It stays inside the palette (no blended colors). `"bands": true` gives hard rings instead of dither. `"tint": "WOoy"` (a ramp, dark to light) moves lit pixels onto that ramp at their own brightness, then lifts them: firelight turns cold stone warm. Glow works on colors: give a glowing key its own hex (a key that shares its hex with another glows with it), and list every color of the light source in `keys` (all flame tones), or the tint repaints the source too. A frame may carry its own `glow` list, which replaces the document's for that frame, so the spill can flicker with the flames.
+- `animation`: optional `{"fps": 8, "loop": true, "frames": [{"ms": 120, "edits": [...]}, ...]}`. Every frame is the document plus that frame's edits: patch-style ops appended to a layer (`{"layer": "lid", "op": "rect", ...}`), `{"layer": "flame", "move": [0, -1]}` to shift a layer, or `{"layer": "spark", "visible": false}`, or an op on a part (`{"part": "window", "op": "recolor", ...}`) to change a stamped detail. `render` then also writes `PREFIX.strip.png` (all frames side by side), `PREFIX.anim.json` (rect and ms per frame, plus `loop`), `PREFIX.gif` and `PREFIX.frames.png` (an enlarged strip to inspect).
+
+Order: layers (rows, then ops, then `shift`), blend layers, `mirror`, `glow`, `outline`.
+
 ## Layer
 
-Fields: `name`, optional `origin` (default `[0,0]`), optional `visible` (default `true`), and `rows` and/or `ops`.
+Fields: `name`, optional `origin` (default `[0,0]`), optional `visible` (default `true`), and `rows` and/or `ops`. Optional `shift: [dx, dy]` moves the finished layer (clipping at the edge). Optional `outline` gives this layer its own outline (use it instead of the document `outline` when smoke or glows must stay unoutlined). A layer may have `"ops": []`, an empty layer that animation frames draw into. Optional `blend: "shade"` or `"light"` (with `steps`, default 1, and `density` 0–1) makes the layer a light mask: it is not drawn, and wherever it is opaque the layers below step darker or lighter along the ramps. Use it for cast shadows across several objects and for light spill.
 
 `rows` is a rectangular, nonempty array of equal-length strings. Its first character is at the layer origin. It may cover only part of the canvas. Empty space outside it is transparent. Write no spaces or tabs as padding. All coordinates are zero-based integers; x increases rightward, y downward.
 
@@ -45,6 +53,24 @@ Hidden layers are still validated. Transparent paint erases pixels on the curren
 | `polygon` | `points`, `color` | Filled polygon including boundary; at least three vertices |
 | `rect` | `xy`, `size`, `color` | Filled rectangle; `xy` is top-left, `size` is `[width,height]` |
 | `ellipse` | `xy`, `size`, `color` | Filled ellipse within the specified pixel rectangle |
+
+Richer operations (these clip to the canvas instead of rejecting out-of-bounds shapes):
+
+| Operation | Fields | Meaning |
+|---|---|---|
+| `line` + `width` | `points`, `color`, `width` | A round brush of that width: poles, tubes, thick strokes |
+| `circle` | `center`, `r`, `color`, optional `ring` | Pixel-art circle; `ring: true` draws a clean 1-pixel ring |
+| `box` | `xy`, `size`, `color` | 1-pixel rectangle border |
+| `fill` | `xy`, `color` | 4-connected flood fill of the region under `xy` on this layer |
+| `dither` | `xy`, `size`, `colors` (two symbols), `density` | Ordered 4×4 dither; the second color covers `density` |
+| `gradient` | `xy`, `size`, `colors` (dark→light or any order), `dir` (`v`/`h`), `soft` | Bands with dithered seams (`soft` 0 = hard bands) |
+| `noise` | `xy`, `size`, `colors`, `density`, `seed`, optional `on` | Sparse speckle, only on pixels whose color is in `on`. Only for granular materials (gravel, sand, rough stone) |
+| `shade` / `light` | optional `region`, `steps`, `density` | Step this layer's colors along the ramps inside a region |
+| `recolor` | `map` (`{"a": "b"}`), optional `region`, `density` | Swap colors inside a region |
+| `stamp` | `part`, `xy`, optional `flip` (`x`/`y`/`xy`), `swap` | Place a part with its top-left at `xy`, optionally recolored |
+| `scatter` | `parts` (name or list), `xy`, `size`, `count`, `seed`, optional `on`, `clip`, `flip` (`"random"`) | Brush: centers land at random points of the area; with `on` only on those colors, and with `clip` the part paints only onto them |
+
+A `region` is `{"rect": [x, y, w, h]}`, `{"circle": [cx, cy, r]}` or `{"polygon": [[x, y], ...]}` in layer coordinates; leave it out for the whole layer. Stack a low-`density` large region and a full small one for a soft falloff.
 
 Every operation also contains `"op"` with the operation name. `color` is a palette character, not a hex string. Rectangles and ellipse bounds end at `[x+width-1, y+height-1]`. Widths and heights must be positive. For predictable polygon fills, use simple non-self-intersecting polygons. For thicker strokes or outlines, construct explicit regions or edit rows; there is no automatic outline/stroke parameter.
 

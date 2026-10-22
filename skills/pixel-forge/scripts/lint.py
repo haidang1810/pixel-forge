@@ -46,8 +46,9 @@ def lint_frame(image):
     fill = {p: c for p, c in opaque.items() if c != outline}
     metrics = {"opaque": len(opaque), "colors": len(colors), "outline_share": round(1 - len(fill) / len(opaque), 2)}
 
-    if len(colors) > 24:
-        findings.append(f"colors: {len(colors)} opaque colors; small sprites read better with about 8-16")
+    budget = max(24, round(24 * (image.width * image.height / 4096) ** 0.5))  # scenes may use more than sprites
+    if len(colors) > budget:
+        findings.append(f"colors: {len(colors)} opaque colors; art this size reads better with at most about {budget}")
 
     def corner(p):  # boxed in by outline on two perpendicular sides: an anti-aliasing position
         x, y = p
