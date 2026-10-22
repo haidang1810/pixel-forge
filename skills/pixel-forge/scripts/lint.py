@@ -13,7 +13,11 @@ Checks (warnings, not failures; judge them against the intent):
   thin        silhouette made mostly of outline (noodle limbs, unreadable at 1x)
   edge        art touching the frame edge (clipping)
   ground      grounded frames of one animation ending on different rows
+  duplicates  colors so close they read as one (Lab distance < 4): one of them does no work
+  flat_ramp   shading that only changes value, not hue (shadows should cool, lights warm)
+  banding     parallel same-length runs of two colors with aligned ends (reads as stripes)
 """
+import colorsys
 import argparse
 import json
 import sys
@@ -28,6 +32,70 @@ N8 = N4 + ((1, 1), (1, -1), (-1, 1), (-1, -1))
 def luminance(c):
     r, g, b = (v / 255 for v in c[:3])
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def lab(c):
+    def lin(v):
+        v /= 255
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(v) for v in c[:3])
+    x, y, z = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.9505, r * 0.2126 + g * 0.7152 + b * 0.0722,         (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.089
+    f = lambda t: t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+    return 116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))
+
+
+def generated_tells(fill, colors, w):
+    """Checks borrowed from catalogues of machine-made pixel art: near-duplicate colors, value-only
+    shading and banding."""
+    findings = []
+    labs = {c: lab(c) for c in colors}
+    listed = sorted(colors)
+    dupes = [(a, b) for i, a in enumerate(listed) for b in listed[i + 1:]
+             if sum((p - q) ** 2 for p, q in zip(labs[a], labs[b])) ** 0.5 < 4]
+    if dupes:
+        hexes = lambda c: f"#{c[0]:02X}{c[1]:02X}{c[2]:02X}"
+        listed_pairs = ", ".join(f"{hexes(a)}/{hexes(b)}" for a, b in dupes[:6])
+        findings.append(f"duplicates: {len(dupes)} color pair(s) a viewer cannot tell apart ({listed_pairs}"
+                        f"{', ...' if len(dupes) > 6 else ''}); merge them")
+    shading = flat = 0
+    for (x, y), c in fill.items():
+        for dx, dy in ((1, 0), (0, 1)):
+            d = fill.get((x + dx, y + dy))
+            if not d or d == c:
+                continue
+            hc, sc, vc = colorsys.rgb_to_hsv(*(v / 255 for v in c[:3]))
+            hd, sd, vd = colorsys.rgb_to_hsv(*(v / 255 for v in d[:3]))
+            if sc < 0.2 or sd < 0.2 or abs(vc - vd) < 0.08:
+                continue
+            hue = min(abs(hc - hd), 1 - abs(hc - hd)) * 360
+            if hue > 40:
+                continue  # different materials, not a shading step
+            shading += 1
+            flat += hue < 3
+    if shading > 30 and flat / shading > 0.6:
+        findings.append(f"flat_ramp: {round(100 * flat / shading)}% of shading steps keep the same hue; "
+                        "shift shadows toward blue-violet and lights toward warm")
+    rows = {}
+    for (x, y), c in fill.items():
+        rows.setdefault(y, {})[x] = c
+    runs = {}
+    for y, cells in rows.items():
+        x = min(cells)
+        while x <= max(cells):
+            if x not in cells:
+                x += 1
+                continue
+            start, c = x, cells[x]
+            while cells.get(x) == c:
+                x += 1
+            if x - start >= max(6, w // 4):
+                runs.setdefault(y, []).append((start, x, c))
+    bands = sum(1 for y, rs in runs.items() for a in rs for b in runs.get(y + 1, [])
+                if a[2] != b[2] and a[0] == b[0] and a[1] == b[1])
+    if bands >= 2:
+        findings.append(f"banding: {bands} pairs of long same-length color runs stacked with aligned ends; "
+                        "stagger the ends so tone boundaries follow the form")
+    return findings
 
 
 def lint_frame(image):
@@ -84,6 +152,8 @@ def lint_frame(image):
     if metrics["outline_share"] > 0.55 and len(opaque) > 40:
         findings.append(f"thin: {round(100 * metrics['outline_share'])}% of the sprite is outline; "
                         "thicken limbs or drop interior outlines")
+
+    findings += generated_tells(fill, set(fill.values()), w)
 
     box = image.getbbox()
     metrics["bbox"] = list(box)

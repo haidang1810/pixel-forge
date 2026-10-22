@@ -99,6 +99,7 @@ EXTRA_OPS = {
     "recolor": {"op", "map", "region", "density"},
     "stamp": {"op", "part", "xy", "flip", "swap"},
     "scatter": {"op", "parts", "xy", "size", "count", "seed", "on", "clip", "flip"},
+    "grid": {"op", "xy", "rows"},
 }
 
 
@@ -301,7 +302,19 @@ def paint_extra(image, op, ctx, origin, where, depth):
     def density():
         return number(op.get("density", 1), where + ".density", 0, 1)
 
-    if kind == "circle":
+    if kind == "grid":
+        # Paste rows of palette symbols at xy; a space leaves the pixel below untouched. This is the
+        # read-back loop: `pixel_art.py ascii` prints the art in the same symbols, you change a few.
+        x0, y0 = ipair(op.get("xy"), where + ".xy")
+        rows = op.get("rows")
+        if not isinstance(rows, list) or not all(isinstance(r, str) for r in rows):
+            raise ValueError(f"{where}.rows: expected a list of strings")
+        for j, row in enumerate(rows):
+            for i, ch in enumerate(row):
+                if ch == " ":
+                    continue
+                put(px, size, x0 + ox + i, y0 + oy + j, ctx.color(ch, f"{where}.rows[{j}][{i}]"))
+    elif kind == "circle":
         cx, cy = ipair(op.get("center"), where + ".center")
         r = number(op.get("r"), where + ".r", 0, 512)
         color = ctx.color(op.get("color"), where)
@@ -454,10 +467,11 @@ def composite(size, layers, ctx, where, options=None, depth=0):
     names = set()
     report = []
     late_blends = []
+    solid = set()
     for index, layer in enumerate(layers):
         lw = f"{where}.layers[{index}]" if where != "document" else f"layers[{index}]"
         object_keys(layer, {"name", "origin", "visible", "rows", "ops", "blend", "steps", "density", "shift", "outline",
-                            "after_glow"}, lw)
+                            "after_glow", "solid", "mirror"}, lw)
         name = layer.get("name")
         if not isinstance(name, str) or not name.strip() or name in names:
             raise ValueError(f"{lw}.name: expected nonempty unique layer name")
@@ -492,6 +506,19 @@ def composite(size, layers, ctx, where, options=None, depth=0):
                 raise ValueError(f"{lw}.ops: expected list")
             for op_index, operation in enumerate(layer["ops"]):
                 paint_operation(image, operation, ctx, origin, f"{lw}.ops[{op_index}]", depth)
+        if "mirror" in layer:  # mirror this layer's shape only; shading layers above stay one-sided
+            mode = layer["mirror"]
+            if mode not in ("x", "y", "xy"):
+                raise ValueError(f"{lw}.mirror: expected x, y or xy")
+            lp = image.load()
+            if "x" in mode:
+                for yy in range(size[1]):
+                    for xx in range(size[0] // 2):
+                        lp[size[0] - 1 - xx, yy] = lp[xx, yy]
+            if "y" in mode:
+                for yy in range(size[1] // 2):
+                    for xx in range(size[0]):
+                        lp[xx, size[1] - 1 - yy] = lp[xx, yy]
         if "outline" in layer:  # this layer's own outline (smoke, glows and effects can stay unoutlined)
             symbol = layer["outline"]
             if not isinstance(symbol, str) or symbol not in ctx.palette or ctx.palette[symbol][3] == 0:
@@ -524,6 +551,9 @@ def composite(size, layers, ctx, where, options=None, depth=0):
                             below[x, y] = ctx.step(below[x, y], steps)
         elif visible:
             canvas = Image.alpha_composite(canvas, image)
+        if layer.get("solid") and visible:
+            lp = image.load()
+            solid.update((x, y) for y in range(size[1]) for x in range(size[0]) if lp[x, y][3])
         report.append({"name": name, "visible": visible, "bbox": image.getbbox()})
     px = canvas.load()
     w, h = size
@@ -540,6 +570,8 @@ def composite(size, layers, ctx, where, options=None, depth=0):
             for y in range(h // 2):
                 for x in range(w):
                     px[x, h - 1 - y] = px[x, y]
+    for i, light in enumerate(options.get("lights", [])):
+        apply_light(px, size, light, ctx, solid, f"{where}.lights[{i}]")
     for i, glow in enumerate(options.get("glow", [])):
         apply_glow(px, size, glow, ctx, f"{where}.glow[{i}]")
     for image, steps, d in late_blends:
@@ -562,10 +594,80 @@ def composite(size, layers, ctx, where, options=None, depth=0):
     return canvas if depth else (canvas, report)
 
 
+def apply_light(px, size, light, ctx, solid, where):
+    """A point light that stays in the palette and follows the geometry.
+
+    Lit pixels step lighter along their ramps (or move onto a `tint` ramp), most where they are close
+    to the source, where the line to it is not blocked by `solid` layers, and on surfaces that face it
+    (an exposed edge toward the light). So firelight rims the anvil and the door jamb facing the fire,
+    pools on the ground in front, and stops behind a wall, instead of painting a disc."""
+    object_keys(light, {"at", "r", "steps", "tint", "on", "block", "falloff", "dither", "keys"}, where)
+    keys = light.get("keys", "")  # the source's own colors (flames, lamp glass) stay as painted
+    if not isinstance(keys, str) or any(ch not in ctx.palette for ch in keys):
+        raise ValueError(f"{where}.keys: expected palette symbols")
+    sources = {ctx.palette[ch] for ch in keys}
+    lx, ly = ipair(light.get("at"), where + ".at")
+    r = number(light.get("r", 24), where + ".r", 1, 512)
+    steps = number(light.get("steps", 2), where + ".steps", 1, 6)
+    block = number(light.get("block", 0.5), where + ".block", 0, 1)  # light lost per solid pixel crossed
+    falloff = number(light.get("falloff", 1.0), where + ".falloff", 0.2, 4)
+    on = light.get("on")
+    if on is not None and (not isinstance(on, str) or any(ch not in ctx.palette for ch in on)):
+        raise ValueError(f"{where}.on: expected palette symbols")
+    receivers = {ctx.palette[ch] for ch in on} if on else None
+    tint = light.get("tint")
+    tint_colors = None
+    if tint is not None:
+        if not isinstance(tint, str) or len(tint) < 2 or any(ch not in ctx.palette for ch in tint):
+            raise ValueError(f"{where}.tint: expected a ramp of palette symbols, dark to light")
+        tint_colors = [ctx.palette[ch] for ch in tint]
+    luma = lambda q: q[0] * 0.3 + q[1] * 0.59 + q[2] * 0.11
+    w, h = size
+    changes = {}
+    reach = int(math.ceil(r))
+    for y in range(max(0, ly - reach), min(h, ly + reach + 1)):
+        for x in range(max(0, lx - reach), min(w, lx + reach + 1)):
+            c = px[x, y]
+            if not c[3] or c in sources or (receivers is not None and c not in receivers):
+                continue
+            if receivers is None and luma(c) < 28:
+                continue  # voids, soot and outlines stay dark unless named in `on`
+            d = math.hypot(x - lx, y - ly)
+            if d > r:
+                continue
+            # visibility: solid pixels on the way, not counting the pixel's own surface (last 2 px)
+            path = list(line_points((lx, ly), (x, y)))
+            crossed = sum(1 for p in path[:-3] if p in solid and abs(p[0] - lx) + abs(p[1] - ly) > 4)  # not the emitter
+            visible = max(0.0, 1 - block * crossed)
+            if visible <= 0:
+                continue
+            # facing: the pixel two steps toward the light is open (or not solid): an exposed surface
+            if d > 0:
+                tx, ty = round(x + 2 * (lx - x) / d), round(y + 2 * (ly - y) / d)
+                inside = (0 <= tx < w and 0 <= ty < h) and px[tx, ty][3] and (tx, ty) in solid
+                facing = 0.45 if inside else 1.0
+            else:
+                facing = 1.0
+            amount = steps * ((1 - d / (r + 1)) ** falloff) * visible * facing
+            if light.get("dither"):
+                n = int(amount) + (1 if dithered(x, y, amount - int(amount)) else 0)
+            else:  # hard bands: no checkerboard over large surfaces
+                n = int(amount + 0.35)
+            if not n:
+                continue
+            if tint_colors:
+                level = min(range(len(tint_colors)), key=lambda i: abs(luma(tint_colors[i]) - luma(c)))
+                changes[(x, y)] = tint_colors[min(len(tint_colors) - 1, level + n - 1)]
+            else:
+                changes[(x, y)] = ctx.step(c, n)
+    for point, c in changes.items():
+        px[point] = c
+
+
 def apply_glow(px, size, glow, ctx, where):
     """Light spill that stays in the palette: opaque pixels near a glowing key step lighter along
     their ramps, by up to `steps`, falling off over `r` pixels with a dithered edge."""
-    object_keys(glow, {"keys", "r", "steps", "bands", "tint"}, where)
+    object_keys(glow, {"keys", "r", "steps", "bands", "tint", "on"}, where)
     keys = glow.get("keys")
     if not isinstance(keys, str) or any(ch not in ctx.palette for ch in keys):
         raise ValueError(f"{where}.keys: expected palette symbols")
@@ -579,6 +681,10 @@ def apply_glow(px, size, glow, ctx, where):
         if not isinstance(tint, str) or len(tint) < 2 or any(ch not in ctx.palette for ch in tint):
             raise ValueError(f"{where}.tint: expected a ramp of palette symbols, dark to light")
         tint_colors = [ctx.palette[ch] for ch in tint]
+    on = glow.get("on")  # only these colors receive the light (keep soot, voids and far walls dark)
+    if on is not None and (not isinstance(on, str) or any(ch not in ctx.palette for ch in on)):
+        raise ValueError(f"{where}.on: expected palette symbols")
+    receivers = {ctx.palette[ch] for ch in on} if on else None
     w, h = size
     lit = [(x, y) for y in range(h) for x in range(w) if px[x, y] in sources]
     if not lit:
@@ -588,7 +694,7 @@ def apply_glow(px, size, glow, ctx, where):
     for y in range(h):
         for x in range(w):
             c = px[x, y]
-            if not c[3] or c in sources:
+            if not c[3] or c in sources or (receivers is not None and c not in receivers):
                 continue
             best = min((math.hypot(x - sx, y - sy) for sx, sy in lit if abs(x - sx) <= reach and abs(y - sy) <= reach),
                        default=None)
@@ -610,7 +716,7 @@ def apply_glow(px, size, glow, ctx, where):
 
 
 DOCUMENT_KEYS = {"version", "size", "palette", "layers", "meta", "outline", "ramps", "parts", "mirror", "glow",
-                 "animation"}
+                 "animation", "lights"}
 
 
 def document_context(document):
@@ -687,7 +793,7 @@ def render_frames(document):
     out = []
     for k, frame in enumerate(frames):
         where = f"animation.frames[{k}]"
-        object_keys(frame, {"ms", "edits", "glow"}, where)
+        object_keys(frame, {"ms", "edits", "glow", "lights"}, where)
         ms = int(number(frame.get("ms", round(1000 / fps)), where + ".ms", 10, 60000))
         layers = copy.deepcopy(document.get("layers"))
         by_name = {layer.get("name"): layer for layer in layers if isinstance(layer, dict)}
@@ -720,7 +826,7 @@ def render_frames(document):
             if operation:
                 layer.setdefault("ops", []).append(operation)
         frame_ctx = Context(ctx.palette, document.get("ramps", []), frame_parts) if frame_parts != ctx.parts else ctx
-        options = dict(document, glow=frame["glow"]) if "glow" in frame else document  # flickering spill
+        options = dict(document, **{k: frame[k] for k in ("glow", "lights") if k in frame})  # flickering light
         image, report = composite(size, layers, frame_ctx, "document", options)
         out.append((image, ms, report))
     return out
@@ -786,6 +892,34 @@ def preview(image, scale, grid=False):
     return result
 
 
+def ascii_art(document, frame=0, box=None):
+    """The rendered art as palette symbols ("." or space for transparent, "?" for a color outside the
+    palette), with x rulers on top and y labels on the left. Edit a few symbols and paste them back
+    with a `grid` op."""
+    render_document(document)
+    if "animation" in document:
+        frames = render_frames(document)
+        if not 0 <= frame < len(frames):
+            raise ValueError(f"--frame: expected 0..{len(frames) - 1}")
+        image = frames[frame][0]
+    else:
+        image = render_document(document)[0]
+    palette = parse_palette(document["palette"])
+    symbol_of = {}
+    for symbol, rgba in palette.items():
+        if rgba[3]:
+            symbol_of.setdefault(rgba, symbol)
+    x0, y0, x1, y1 = box or (0, 0, image.width - 1, image.height - 1)
+    x0, y0, x1, y1 = max(0, x0), max(0, y0), min(image.width - 1, x1), min(image.height - 1, y1)
+    px = image.load()
+    lines = ["    " + "".join(str(x // 10 % 10) if x % 10 == 0 else " " for x in range(x0, x1 + 1)),
+             "    " + "".join(str(x % 10) for x in range(x0, x1 + 1))]
+    for y in range(y0, y1 + 1):
+        row = "".join(" " if not px[x, y][3] else symbol_of.get(px[x, y], "?") for x in range(x0, x1 + 1))
+        lines.append(f"{y:3} {row}")
+    return "\n".join(lines)
+
+
 def write_animation(document, prefix, scale):
     """A horizontal strip, a manifest in the rig2d schema, a looping preview GIF and a frames preview."""
     frames = render_frames(document)
@@ -825,6 +959,10 @@ def main(argv=None):
     render.add_argument("--out", required=True, type=Path, help="Output prefix; suffixes are appended")
     render.add_argument("--scale", type=int, default=12)
     render.add_argument("--grid", action="store_true", help="Export a coordinate grid (minimum 4x); existing grids are refreshed")
+    text = commands.add_parser("ascii", help="Print the rendered art as palette symbols with coordinate rulers")
+    text.add_argument("source", type=Path)
+    text.add_argument("--frame", type=int, default=0, help="animation frame (0-based)")
+    text.add_argument("--box", nargs=4, type=int, metavar=("X0", "Y0", "X1", "Y1"), help="inclusive region")
     patch_parser = commands.add_parser("patch", help="Save validated edits as a new JSON document")
     patch_parser.add_argument("source", type=Path)
     patch_parser.add_argument("patch_file", type=Path)
@@ -838,6 +976,9 @@ def main(argv=None):
             updated = patch_document(source, read_json(args.patch_file))
             write_json(args.output, updated)
             print(json.dumps({"source": str(args.output.resolve())}))
+            return 0
+        if args.command == "ascii":
+            print(ascii_art(source, args.frame, args.box))
             return 0
         image, report = render_document(source)
         if args.command == "validate":

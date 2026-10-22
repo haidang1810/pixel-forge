@@ -9,7 +9,7 @@ Create original pixel art through structured drawing data and a deterministic re
 
 ## Setup
 
-Read [references/format.md](references/format.md) before authoring static JSON. For a character, mob, or any animation, also read [references/rig.md](references/rig.md). Resolve `scripts/pixel_art.py` relative to this skill's directory. It needs Python 3.10+ and Pillow 9.1+. Prefer an existing Python with Pillow; in Codex desktop, `load_workspace_dependencies` can locate the bundled interpreter. On Windows use PowerShell `&` before a quoted interpreter path. If dependencies are absent, install `scripts/requirements.txt` into a task-local virtual environment.
+Read [references/format.md](references/format.md) before authoring static JSON, and [references/craft.md](references/craft.md) for the subject you are drawing (value and light, faces, hands, props, fire and smoke, animation, scenes, the generated-art tells to avoid). For a character, mob, or any animation, also read [references/rig.md](references/rig.md). Resolve `scripts/pixel_art.py` relative to this skill's directory. It needs Python 3.10+ and Pillow 9.1+. Prefer an existing Python with Pillow; in Codex desktop, `load_workspace_dependencies` can locate the bundled interpreter. On Windows use PowerShell `&` before a quoted interpreter path. If dependencies are absent, install `scripts/requirements.txt` into a task-local virtual environment.
 
 ## Make it this user's asset
 
@@ -77,7 +77,7 @@ Judge the render the way a pixel-art lead would, at 1x and 2x as well as enlarge
 5. **Design:** appealing proportions; the face has an eye with a socket or brow and a mouth line; gear is big enough to read (at least 3-4 pixels).
 6. **Animation:** readable key poses, weight and arcs; weapons stay attached to the hand; effects connect to the motion; nothing pops or detaches.
 
-Self-scores run about two points too high. Get an outside eye: if you can start a subagent, give it only the rendered PNGs and ask it to grade harshly as a pixel-art lead who did not make them; otherwise list at least five concrete defects, as if reviewing a stranger's work, before you write any score. After each render, write the six scores honestly, name the weakest criterion with the frame and part, fix that, and render again. Repeat until every criterion is 8 or more, or until six rounds pass; then say which criteria fell short and why. Common fixes:
+Self-scores run about two points too high, and reviewers' specific claims are often wrong. Follow [references/critique.md](references/critique.md): an outside reviewer (a subagent given only the PNGs) or your own cold read, defects with pixel boxes checked against the pixels before you act, and a fix kept only when it wins a blind A/B (`scripts/abtest.py`). After each render, write the six scores honestly, name the weakest criterion with the frame and part, fix that, and render again. Repeat until every criterion is 8 or more, or until six rounds pass; then say which criteria fell short and why. Common fixes:
 - muddy value: push a ramp's base lighter or darker (`{"base": ...}`) so neighbors differ by about 20% in brightness; give the near arm or sleeve a different material from the torso;
 - segmented body: put parts of one body in one `group`;
 - noise: remove `texture` from small parts, and drop single-pixel decorations that are not eyes or highlights;
@@ -90,6 +90,7 @@ Here `python` means the interpreter found during setup; `SKILL_DIR` means this s
 
 ```text
 python SKILL_DIR/scripts/pixel_art.py render sprite.json --out sprite-v1 --scale 12 --grid
+python SKILL_DIR/scripts/pixel_art.py ascii sprite.json --box 8 4 23 15
 python SKILL_DIR/scripts/pixel_art.py patch sprite.json edits.json --output sprite-v2.json
 python SKILL_DIR/scripts/pixel_art.py render sprite-v2.json --out sprite-v2 --scale 12 --grid
 ```

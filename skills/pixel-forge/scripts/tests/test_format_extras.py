@@ -87,6 +87,58 @@ class FormatExtrasTests(unittest.TestCase):
         manifest = json.loads((temp / "a.anim.json").read_text())
         self.assertEqual(len(manifest["frames"]), 2)
 
+    def test_grid_op_and_ascii_round_trip(self):
+        d = doc()
+        d["layers"][0]["ops"].append({"op": "grid", "xy": [2, 2], "rows": ["c c", " k "]})
+        image = self.render(d)
+        self.assertEqual(image.getpixel((2, 2))[:3], (0x80, 0x80, 0xE0))
+        self.assertEqual(image.getpixel((3, 2))[:3], (0x50, 0x50, 0xA0))  # space kept the rect below
+        self.assertEqual(image.getpixel((3, 3))[:3], (0x10, 0x10, 0x10))
+        text = pixel_art.ascii_art(d, box=[0, 0, 9, 4]).splitlines()
+        self.assertEqual(text[2 + 2][4:4 + 6], "  cbcb")  # the space kept b
+        self.assertEqual(text[2 + 3][4:4 + 6], "  bkbb")
+
+    def test_abtest_hides_and_reveals_the_order(self):
+        import subprocess, tempfile
+        temp = Path(tempfile.mkdtemp())
+        for name, color in (("old.png", (255, 0, 0, 255)), ("new.png", (0, 255, 0, 255))):
+            from PIL import Image
+            Image.new("RGBA", (2, 2), color).save(temp / name)
+        script = Path(pixel_art.__file__).with_name("abtest.py")
+        r = subprocess.run([sys.executable, str(script), str(temp / "old.png"), str(temp / "new.png"), "--dir", str(temp / "ab")],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        from PIL import Image
+        greens = [n for n in "ab" if Image.open(temp / "ab" / f"{n}.png").getpixel((0, 0))[1] == 255]
+        out = subprocess.run([sys.executable, str(script), "--reveal", str(temp / "ab")], capture_output=True, text=True).stdout
+        self.assertIn(f"new version is {greens[0]}", out)
+
+    def test_lint_flags_duplicates_and_banding(self):
+        import lint
+        from PIL import Image
+        image = Image.new("RGBA", (24, 12), (0, 0, 0, 0))
+        for x in range(1, 23):
+            for y in range(1, 11):
+                image.putpixel((x, y), (16, 16, 16, 255))  # outline ring
+        for x in range(2, 22):
+            for y in range(2, 10):
+                image.putpixel((x, y), (200, 60, 60, 255) if y < 4 else (160, 45, 45, 255) if y < 7 else (120, 30, 30, 255))
+        image.putpixel((10, 2), (201, 61, 60, 255))
+        findings = lint.lint_frame(image)[1]
+        self.assertTrue(any(f.startswith("duplicates") for f in findings), findings)
+        self.assertTrue(any(f.startswith("banding") for f in findings), findings)
+
+    def test_lights_are_blocked_by_solid_layers_and_spare_the_source(self):
+        d = doc()
+        d["layers"] = [{"name": "floor", "ops": [{"op": "rect", "xy": [0, 8], "size": [16, 4], "color": "b"}]},
+                       {"name": "wall", "solid": True, "ops": [{"op": "rect", "xy": [9, 0], "size": [2, 8], "color": "b"}]},
+                       {"name": "fire", "ops": [{"op": "pixels", "points": [[4, 7]], "color": "Y"}]}]
+        d["lights"] = [{"at": [4, 7], "r": 12, "steps": 2, "keys": "Y"}]
+        image = self.render(d)
+        self.assertEqual(image.getpixel((4, 7))[:3], (0xFF, 0xF0, 0xA0))  # the source stays as painted
+        self.assertEqual(image.getpixel((4, 8))[:3], (0x80, 0x80, 0xE0))  # floor next to the fire lit b -> c
+        self.assertEqual(image.getpixel((14, 9))[:3], (0x50, 0x50, 0xA0))  # floor behind the wall stays b
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -131,7 +131,9 @@ def kit_document_palette(slug):
         palette[symbol] = c
         symbol_of[c] = symbol
     ramps = {name: "".join(symbol_of[c.upper()] for c in ramp) for name, ramp in k["ramps"].items()}
-    return {"kit": slug, "credit": f"{k['name']} by {k['author']} ({k['url']})", "palette": palette, "ramps": ramps}
+    return {"kit": slug, "credit": f"{k['name']} by {k['author']} ({k['url']})", "palette": palette, "ramps": ramps,
+            # paste this list as the document's "ramps" (outline first, so shading can step down to it)
+            "document_ramps": ["o" + r if not r.startswith("o") else r for r in ramps.values()]}
 
 
 def main(argv=None):

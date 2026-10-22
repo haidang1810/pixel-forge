@@ -114,13 +114,19 @@ def main(argv=None):
     if args.region:
         x, y, rw, rh = args.region
         s = max(2, min(16, 960 // max(rw, rh)))
-        crops = [(name, [f.crop((x, y, x + rw, y + rh)) for f in frames]) for name, frames in load(folder)]
+        per_row = 8  # wrap long animations so every crop stays large
+        crops = []
+        for name, frames in load(folder):
+            cs = [f.crop((x, y, x + rw, y + rh)) for f in frames]
+            for start in range(0, len(cs), per_row):
+                crops.append((f"{name}: region {x},{y} {rw}x{rh}, frames {start}-{min(len(cs), start + per_row) - 1}",
+                              cs[start:start + per_row]))
         cols = max(len(c) for _, c in crops)
         sheet = Image.new("RGBA", (cols * (rw * s + 4) + 4, len(crops) * (rh * s + 18)), (24, 27, 38, 255))
         draw = ImageDraw.Draw(sheet)
-        for r_, (name, cs) in enumerate(crops):
+        for r_, (label, cs) in enumerate(crops):
             top = r_ * (rh * s + 18)
-            draw.text((4, top + 2), f"{name}: region {x},{y} {rw}x{rh}, frames 0-{len(cs) - 1}", fill=(220, 225, 240, 255))
+            draw.text((4, top + 2), label, fill=(220, 225, 240, 255))
             for i, c in enumerate(cs):
                 big = c.resize((rw * s, rh * s), Image.NEAREST)
                 tile = checker(big.size, s * 4)
