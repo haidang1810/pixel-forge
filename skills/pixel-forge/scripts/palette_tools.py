@@ -117,7 +117,7 @@ def expand_palette(spec):
     return dict(spec, palette=palette, ramps=ramps)
 
 
-SYMBOLS = "abcdefghijlmnpqrstuvwxyzABCDEFGHIJKLMNPQRSTUVWXYZ0123456789"
+SYMBOLS = "abcdefghijlmnpqrstuvwxyzABCDEFGHIJKLMNPQRSTUVWXYZ0123456789#$%&*+=?@!^~<>"  # enough for 64-color kits
 
 
 def kit_document_palette(slug):

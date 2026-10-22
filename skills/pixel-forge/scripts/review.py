@@ -97,6 +97,8 @@ def main(argv=None):
     parser.add_argument("--out", required=True)
     parser.add_argument("--scale", type=int, default=8)
     parser.add_argument("--frames", type=int, default=4, help="key frames per animation")
+    parser.add_argument("--region", nargs=4, type=int, metavar=("X", "Y", "W", "H"),
+                        help="tile this region of every frame side by side, enlarged (fire, smoke, a hand)")
     args = parser.parse_args(argv)
     if all(f.lower().endswith(".png") for f in [args.folder] + args.more):
         return review_images([Path(f) for f in [args.folder] + args.more], Path(args.out))
@@ -109,6 +111,24 @@ def main(argv=None):
         print(f"error: {folder}: expected a rig2d/sheet.py folder (animation.json) or a pixel_art PREFIX.anim.json",
               file=sys.stderr)
         return 2
+    if args.region:
+        x, y, rw, rh = args.region
+        s = max(2, min(16, 960 // max(rw, rh)))
+        crops = [(name, [f.crop((x, y, x + rw, y + rh)) for f in frames]) for name, frames in load(folder)]
+        cols = max(len(c) for _, c in crops)
+        sheet = Image.new("RGBA", (cols * (rw * s + 4) + 4, len(crops) * (rh * s + 18)), (24, 27, 38, 255))
+        draw = ImageDraw.Draw(sheet)
+        for r_, (name, cs) in enumerate(crops):
+            top = r_ * (rh * s + 18)
+            draw.text((4, top + 2), f"{name}: region {x},{y} {rw}x{rh}, frames 0-{len(cs) - 1}", fill=(220, 225, 240, 255))
+            for i, c in enumerate(cs):
+                big = c.resize((rw * s, rh * s), Image.NEAREST)
+                tile = checker(big.size, s * 4)
+                tile.alpha_composite(big)
+                sheet.alpha_composite(tile, (4 + i * (rw * s + 4), top + 14))
+        sheet.save(args.out)
+        print(f"wrote {args.out}")
+        return 0
     rows = []
     for name, frames in load(folder):
         picks = key_frames(frames, args.frames)

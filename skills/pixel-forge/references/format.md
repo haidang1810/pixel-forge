@@ -21,7 +21,7 @@ Every row character must match a palette key exactly. The renderer reports the r
 
 - `version`: integer `1`.
 - `size`: `[width, height]`, integers 1–512. For larger scenes, create tiles or components; this renderer targets small art.
-- `palette`: nonempty map from one visible ASCII character to `#RRGGBB` or `#RRGGBBAA`. Alpha must be `00` or `FF`. Fully transparent colors normalize to zero RGBA. `.` is an ordinary palette key; define it as transparent when using dots in rows.
+- `palette`: nonempty map from one visible ASCII character to `#RRGGBB` or `#RRGGBBAA`. Alpha must be `00` or `FF`. Fully transparent colors normalize to zero RGBA. `.` is an ordinary palette key; define it as transparent when using dots in rows. A transparent symbol in rows paints transparency into that layer (it does not erase lower layers), so to leave pixels of a layer untouched, give that layer smaller rows or use ops.
 - `layers`: nonempty array in back-to-front order. Names must be unique.
 - `outline`: optional opaque palette symbol. After all layers are composited, every transparent pixel that touches an opaque one (up, down, left or right) takes this color, so layers can be drawn without their own outline. Leave a one-pixel margin on the canvas for it. `palette_tools.py --kit SLUG` prints a palette whose `o` is the kit's outline.
 - `meta`: optional object for your brief, palette roles, pivot, and notes. It is copied to the report and does not affect rendering. Frame timing and engine import settings are not inferred.
@@ -36,7 +36,7 @@ Order: layers (rows, then ops, then `shift`), blend layers, `mirror`, `glow`, `o
 
 ## Layer
 
-Fields: `name`, optional `origin` (default `[0,0]`), optional `visible` (default `true`), and `rows` and/or `ops`. Optional `shift: [dx, dy]` moves the finished layer (clipping at the edge). Optional `outline` gives this layer its own outline (use it instead of the document `outline` when smoke or glows must stay unoutlined). A layer may have `"ops": []`, an empty layer that animation frames draw into. Optional `blend: "shade"` or `"light"` (with `steps`, default 1, and `density` 0–1) makes the layer a light mask: it is not drawn, and wherever it is opaque the layers below step darker or lighter along the ramps. Use it for cast shadows across several objects and for light spill.
+Fields: `name`, optional `origin` (default `[0,0]`), optional `visible` (default `true`), and `rows` and/or `ops`. Optional `shift: [dx, dy]` moves the finished layer (clipping at the edge). Optional `outline` gives this layer its own outline (use it instead of the document `outline` when smoke or glows must stay unoutlined). A layer may have `"ops": []`, an empty layer that animation frames draw into. Optional `blend: "shade"` or `"light"` (with `steps`, default 1, and `density` 0–1) makes the layer a light mask: it is not drawn, and wherever it is opaque the layers below step darker or lighter along the ramps. Use it for cast shadows across several objects and for light spill. Blend layers apply before `glow`, so firelight can wash out a nearby shadow; add `"after_glow": true` to apply that shadow after the glow. One step on a 4–5 tone ramp is subtle: use `steps: 2` for shadows that must read at 1x.
 
 `rows` is a rectangular, nonempty array of equal-length strings. Its first character is at the layer origin. It may cover only part of the canvas. Empty space outside it is transparent. Write no spaces or tabs as padding. All coordinates are zero-based integers; x increases rightward, y downward.
 

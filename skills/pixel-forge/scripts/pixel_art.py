@@ -453,9 +453,11 @@ def composite(size, layers, ctx, where, options=None, depth=0):
     canvas = Image.new("RGBA", size)
     names = set()
     report = []
+    late_blends = []
     for index, layer in enumerate(layers):
         lw = f"{where}.layers[{index}]" if where != "document" else f"layers[{index}]"
-        object_keys(layer, {"name", "origin", "visible", "rows", "ops", "blend", "steps", "density", "shift", "outline"}, lw)
+        object_keys(layer, {"name", "origin", "visible", "rows", "ops", "blend", "steps", "density", "shift", "outline",
+                            "after_glow"}, lw)
         name = layer.get("name")
         if not isinstance(name, str) or not name.strip() or name in names:
             raise ValueError(f"{lw}.name: expected nonempty unique layer name")
@@ -512,7 +514,9 @@ def composite(size, layers, ctx, where, options=None, depth=0):
                 raise ValueError(f"{lw}.blend: expected shade or light")
             steps = int(number(layer.get("steps", 1), lw + ".steps", 1, 8)) * (-1 if blend == "shade" else 1)
             d = number(layer.get("density", 1), lw + ".density", 0, 1)
-            if visible:
+            if visible and layer.get("after_glow"):
+                late_blends.append((image, steps, d))  # a cast shadow that firelight must not wash out
+            elif visible:
                 mask, below = image.load(), canvas.load()
                 for y in range(size[1]):
                     for x in range(size[0]):
@@ -538,6 +542,12 @@ def composite(size, layers, ctx, where, options=None, depth=0):
                     px[x, h - 1 - y] = px[x, y]
     for i, glow in enumerate(options.get("glow", [])):
         apply_glow(px, size, glow, ctx, f"{where}.glow[{i}]")
+    for image, steps, d in late_blends:
+        mask = image.load()
+        for y in range(h):
+            for x in range(w):
+                if mask[x, y][3] and px[x, y][3] and dithered(x, y, d):
+                    px[x, y] = ctx.step(px[x, y], steps)
     if "outline" in options:
         # Optional automatic outline: every transparent pixel touching the art (4-neighbour) gets the
         # outline symbol's color, so a whole set shares one consistent outline without hand-drawing it.

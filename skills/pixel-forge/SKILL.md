@@ -20,7 +20,7 @@ Ten users asking for "an orc" should not get ten copies of the same orc. Read [r
 3. Turn the traits into explicit choices instead of defaults, and state them in one line:
    - shape and colors: silhouette features, a palette built around the traits, and accent props;
    - for characters, also `build` (body type: `bulky`, `slim`, `tall`, `short`, `child`, `elderly`, `brute`), `motion` (`weight`, `energy`, `exaggeration`, `follow`, and the rolled `seed` so two creatures of one kind never move identically), `style` (outline, number of shades, dither, light direction) and posture (`pose_offset`);
-   - for a set of assets, one bundled `palette_kit` (`pico-8`, `dawnbringer-16`, `dawnbringer-32`, `aap-64`, `sweetie-16`, `endesga-32`) shared by every asset, with materials taken from its named ramps and `style.snap` keeping every pixel inside it.
+   - for a set of assets, one bundled `palette_kit` (`pico-8`, `dawnbringer-16`, `dawnbringer-32`, `aap-64`, `sweetie-16`, `endesga-32`) shared by every asset, with materials taken from its named ramps; characters add `style.snap` to keep every pixel inside it, and static documents simply use the palette that `palette_tools.py --kit` prints.
 4. When the brief leaves room, offer 2–3 short variant directions, or render small variants side by side (for example a different `build`, `motion` or palette), and let the user pick before polishing one. Skip this when the user gave a precise spec.
 
 For a set of assets for one game, keep the style, palette roles and scale shared across the set, and vary identity within it.
@@ -48,7 +48,7 @@ Items, icons, tiles, props and small scenes use `pixel_art.py` (see `format.md`)
 - **Hinged motion:** a lid or door rotates around its hinge: draw it at 3 or more angles (closed, foreshortened, open showing its inside face), add an overshoot and settle; never just slide it up.
 - **No mechanical grids.** Vary tile, brick and plank sizes, offset joints irregularly, break the pattern where things meet (a chimney through a roof, a ridge cap, chipped edges), and change values across a surface (sun-faded top, soot near a chimney, dirt near the ground). A generator script is fine, but give it randomness and exceptions.
 - **Fire and smoke:** fire is 3–5 persistent tongues that rise, sway and split over 6–8 frames, with a flickering ember loop below; never re-randomize every pixel each frame. Smoke is separate puffs that leave the source, rise, grow, drift with the wind, thin into a dither and vanish; each puff lives for several frames, and several overlap.
-- Animated documents: `review.py PREFIX.anim.json --out review.png` shows the key frames and the 1x/2x loop. A layer can carry its own `outline` (draw smoke and glows without one), and frame edits can name a `part` to change stamped details per frame.
+- Animated documents: `review.py PREFIX.anim.json --out review.png` shows the key frames and the 1x/2x loop, and `--region X Y W H` tiles one area (the fire, the smoke) across every frame, enlarged. A layer can carry its own `outline` (draw smoke and glows without one), and frame edits can name a `part` to change stamped details per frame.
 - `python SKILL_DIR/scripts/lint.py` accepts a single PNG or a `sheet.py` output folder.
 
 ## Characters and animation
