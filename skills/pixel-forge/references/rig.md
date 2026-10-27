@@ -223,7 +223,7 @@ Beyond the built-in presets above, the packs in `scripts/preset_packs/` add thes
 
 - **humanoid** (`humanoid_combat`, `humanoid_movement`, `humanoid_actions`, `slime_float`):
   - combat: `heavy_attack`, `thrust`, `combo`, `block`, `parry`, `kick`, `shield_bash`;
-  - movement: `run`, `jump`, `jump_rise`, `jump_fall`, `land`, `crouch`, `crouch_walk`, `sneak`, `dash`, `climb`, `push`;
+  - movement: `run`, `jump` (`height` in pixels, about a fifth of the character's height), `jump_rise`, `jump_fall`, `land`, `crouch`, `crouch_walk`, `sneak`, `dash`, `climb`, `push`;
   - actions: `cast`, `cast_loop`, `shoot_bow`, `throw`, `wave`, `cheer`, `sit`, `sit_idle`, `sleep`, `sleep_idle`, `stunned`, `knockback`, `taunt`;
   - floating creatures: `float_attack`, `vanish`, `appear`, `haunt`.
 - **quadruped:** `trot`, `stalk`, `sniff`, `howl`, `sit`, `sit_idle`, `lie_down`, `sleep`, `bite_combo`, `charge`, `rear_up`, `shake`, `leap`.

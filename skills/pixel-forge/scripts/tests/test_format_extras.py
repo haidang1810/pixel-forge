@@ -139,6 +139,21 @@ class FormatExtrasTests(unittest.TestCase):
         self.assertEqual(image.getpixel((4, 8))[:3], (0x80, 0x80, 0xE0))  # floor next to the fire lit b -> c
         self.assertEqual(image.getpixel((14, 9))[:3], (0x50, 0x50, 0xA0))  # floor behind the wall stays b
 
+    def test_material_regions_are_shaded_lit_side_lighter(self):
+        d = {"version": 1, "size": [24, 24], "palette": {".": "#00000000", "k": "#101018", "x": "#FFFFFF"},
+             "outline": "k", "outline_style": "selective", "light": "upper-left",
+             "materials": {"jelly": {"base": "#3A9A5C", "form": "dome"}},
+             "layers": [{"name": "blob", "material": "jelly", "ops": [{"op": "circle", "center": [12, 12], "r": 8, "color": "x"}]}]}
+        image = self.render(d)
+        luma = lambda c: c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11
+        tones = {image.getpixel((x, y)) for x in range(5, 20) for y in range(5, 20) if image.getpixel((x, y))[3]}
+        self.assertGreaterEqual(len(tones), 4)  # several shading tones from one flat region
+        self.assertGreater(luma(image.getpixel((9, 9))), luma(image.getpixel((15, 16))))  # upper-left lit
+        self.assertNotIn("?", pixel_art.ascii_art(d))  # generated tones are palette symbols
+        bad = dict(d, materials={"jelly": {"form": "dome"}})
+        with self.assertRaises(ValueError):
+            self.render(bad)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -52,33 +52,44 @@ def run(frames=8, ms=75, stride=38, knee=95, arm=48, lift=3, **rest):
 # ---------- jump ----------
 
 def _jump_poses(start):
-    crouch = dict(start, lean=18, head=-10, hip_n=48, knee_n=88, hip_f=40, knee_f=84, ankle_n=4, ankle_f=4,
-                  sh_n=-45, el_n=25, sh_f=-55, el_f=20, plant="all")
-    takeoff = dict(start, lean=4, head=-6, hip_n=4, knee_n=6, hip_f=-14, knee_f=10, ankle_n=-20, ankle_f=-22,
-                   sh_n=70, el_n=20, sh_f=55, el_f=25)
-    rise = dict(start, lean=6, head=-6, hip_n=42, knee_n=62, hip_f=8, knee_f=34, ankle_n=-20, ankle_f=-25,
-                sh_n=55, el_n=40, sh_f=40, el_f=40)
-    apex = dict(start, lean=12, head=-8, hip_n=70, knee_n=110, hip_f=55, knee_f=104, ankle_n=-5, ankle_f=-10,
-                sh_n=35, el_n=70, sh_f=25, el_f=60)
-    fall = dict(start, lean=2, head=-8, hip_n=24, knee_n=22, hip_f=-4, knee_f=30, ankle_n=-10, ankle_f=-15,
-                sh_n=80, el_n=0, sh_f=-60, el_f=30)
-    land = dict(start, lean=20, head=-12, hip_n=50, knee_n=92, hip_f=42, knee_f=88, ankle_n=4, ankle_f=4,
-                sh_n=35, el_n=35, sh_f=20, el_f=30, plant="all")
+    """Key poses of a platformer jump. The body squashes deep before takeoff and on landing (knees
+    bent, spine compressed with a negative `breathe`), stretches at takeoff, and tucks into a ball at
+    the apex. The legs stay asymmetric in the air (one knee leading); both legs folded the same way
+    reads as a sitting hop."""
+    crouch = dict(start, lean=16, head=-8, hip_n=46, knee_n=88, hip_f=36, knee_f=80, ankle_n=4, ankle_f=4,
+                  sh_n=-34, el_n=30, sh_f=-42, el_f=25, breathe=-0.08, plant="all")
+    takeoff = dict(start, lean=6, head=-4, hip_n=12, knee_n=8, hip_f=-8, knee_f=6, ankle_n=-28, ankle_f=-32,
+                   sh_n=48, el_n=30, sh_f=34, el_f=28, breathe=0.08)
+    rise = dict(start, lean=8, head=-4, hip_n=62, knee_n=88, hip_f=-6, knee_f=40, ankle_n=-12, ankle_f=-26,
+                sh_n=40, el_n=55, sh_f=24, el_f=50, breathe=0.02)
+    apex = dict(start, lean=16, head=-10, hip_n=80, knee_n=118, hip_f=58, knee_f=104, ankle_n=-8, ankle_f=-14,
+                sh_n=22, el_n=80, sh_f=10, el_f=74, breathe=-0.06)
+    fall = dict(start, lean=4, head=-2, hip_n=24, knee_n=30, hip_f=12, knee_f=22, ankle_n=0, ankle_f=-6,
+                sh_n=62, el_n=25, sh_f=-38, el_f=30, breathe=0.04)
+    land = dict(start, lean=24, head=-14, hip_n=58, knee_n=104, hip_f=46, knee_f=96, ankle_n=6, ankle_f=6,
+                sh_n=18, el_n=45, sh_f=-14, el_f=35, breathe=-0.12, plant="all")
     return crouch, takeoff, rise, apex, fall, land
 
 
 def jump(ms=1.0, height=6, **rest):
-    """Full one-shot jump in place: crouch anticipation, takeoff stretch, rise, apex hold, fall,
-    landing squash with the knees bent, recover to rest. height: apex lift in pixels (dy).
+    """Full one-shot jump in place: squash anticipation (knees deep, arms back), takeoff stretch (legs
+    straight, toes down, arms up), rise with one knee leading, a tucked ball at the apex, fall with the
+    legs reaching for the ground and the arms open, a deep landing squash, a small rebound, recover.
+    height: apex lift in pixels (dy); about a fifth of the character's height reads well (the default 6
+    suits a 40-pixel character; raise it for bigger ones and leave headroom in the canvas).
     ms scales all timings."""
     start = base.pose("humanoid", **rest)
     crouch, takeoff, rise, apex, fall, land = (_frame(p, rest) for p in _jump_poses(start))
-    keys = [(base.lerp(start, crouch, 0.5), 60), (crouch, 120),
-            (dict(takeoff, dy=-0.25 * height), 70),
-            (dict(rise, dy=-0.65 * height), 90),
-            (dict(apex, dy=-height), 160),
-            (dict(fall, dy=-0.6 * height), 90),
-            (land, 110), (_frame(base.lerp(land, start, 0.55), rest), 110), (start, 120)]
+    reach = _frame(dict(base.lerp(fall, start, 0.5), sh_n=fall["sh_n"] - 15, sh_f=fall["sh_f"] + 10), rest)
+    touch = _frame(base.lerp(reach, land, 0.5), rest)
+    rebound = _frame(dict(base.lerp(land, start, 0.75), breathe=0.04), rest)
+    keys = [(_frame(base.lerp(start, crouch, 0.5), rest), 60), (crouch, 120),
+            (dict(takeoff, dy=-0.3 * height), 50),
+            (dict(rise, dy=-0.75 * height), 80),
+            (dict(apex, dy=-height), 150),
+            (dict(fall, dy=-0.7 * height), 80),
+            (dict(reach, dy=-0.25 * height), 50),
+            (touch, 50), (land, 120), (rebound, 90), (start, 110)]
     return base.timed(keys, ms)
 
 

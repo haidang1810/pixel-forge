@@ -108,6 +108,7 @@ class Context:
 
     def __init__(self, palette, ramps=(), parts=None):
         self.palette = palette
+        self.ramp_names = list(ramps)
         self.symbol_of = {}
         for symbol, rgba in palette.items():
             self.symbol_of.setdefault(rgba, symbol)
@@ -118,6 +119,8 @@ class Context:
                 self.ramp_of.setdefault(rgba, (colors, i))
         self.parts = parts or {}
         self.part_images = {}
+        self.materials = {}
+        self.light = (-0.7071, -0.7071)
 
     def color(self, symbol, where):
         if not isinstance(symbol, str) or symbol not in self.palette:
@@ -458,6 +461,199 @@ def place(px, size, art, x0, y0, mask=None):
                 px[x, y] = c
 
 
+# ---------- materials: flat regions in, shaded volumes out ----------
+
+LIGHTS_2D = {"upper-left": (-0.7, -0.7), "upper-right": (0.7, -0.7), "top": (0.0, -1.0), "left": (-1.0, -0.15),
+             "right": (1.0, -0.15)}
+FORMS = ("dome", "bevel", "cylinder", "flat")
+MATERIAL_KEYS = {"base", "ramp", "tones", "shift", "form", "bevel", "axis", "highlight"}
+SPARE_SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#$%&*+=?@!^~<>[]{}|;:,/\\'`\"-_()"
+
+
+def light_direction(document):
+    light = document.get("light", "upper-left")
+    if isinstance(light, (int, float)) and not isinstance(light, bool):
+        a = math.radians(light)  # degrees: 0 = from the right, 90 = from straight above, 180 = from the left
+        return math.cos(a), -math.sin(a)
+    if light not in LIGHTS_2D:
+        raise ValueError(f"light: expected one of {', '.join(LIGHTS_2D)} or degrees")
+    x, y = LIGHTS_2D[light]
+    n = math.hypot(x, y)
+    return x / n, y / n
+
+
+def expand_materials(document, palette, ramps):
+    """Turn document materials into palette entries and ramps. Returns {name: (spec, [rgba dark->light])}."""
+    materials = document.get("materials", {})
+    if not isinstance(materials, dict):
+        raise ValueError("materials: expected an object of named materials")
+    import importlib.util
+    tools = importlib.util.spec_from_file_location("palette_tools", Path(__file__).with_name("palette_tools.py"))
+    module = importlib.util.module_from_spec(tools)
+    tools.loader.exec_module(module)
+    free = iter(ch for ch in SPARE_SYMBOLS if ch not in palette)
+    out = {}
+    for name, spec in materials.items():
+        where = f"materials.{name}"
+        object_keys(spec, MATERIAL_KEYS, where)
+        if spec.get("form", "dome") not in FORMS:
+            raise ValueError(f"{where}.form: expected one of {', '.join(FORMS)}")
+        if "ramp" in spec:
+            symbols = spec["ramp"]
+            if not isinstance(symbols, str) or len(symbols) < 2 or any(ch not in palette for ch in symbols):
+                raise ValueError(f"{where}.ramp: expected palette symbols, dark to light")
+            colors = [palette[ch] for ch in symbols]
+        elif isinstance(spec.get("base"), str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", spec["base"]):
+            tones = int(number(spec.get("tones", 4), where + ".tones", 3, 6))
+            hexes = module.ramp(spec["base"].upper(), tones=tones, shift=number(spec.get("shift", 24), where + ".shift", 0, 90))
+            symbols = ""
+            colors = []
+            for hx in hexes:
+                rgba = tuple(int(hx[i:i + 2], 16) for i in (1, 3, 5)) + (255,)
+                symbol = next((k for k, v in palette.items() if v == rgba), None)
+                if symbol is None:
+                    try:
+                        symbol = next(free)
+                    except StopIteration:
+                        raise ValueError(f"{where}: no free palette symbols left for the generated ramp")
+                    palette[symbol] = rgba
+                symbols += symbol
+                colors.append(rgba)
+        else:
+            raise ValueError(f"{where}: give \"base\": \"#RRGGBB\" or \"ramp\": \"symbols\"")
+        ramps.append(symbols)
+        out[name] = (spec, colors)
+    return out
+
+
+def chamfer(mask):
+    big = 1e9
+    dist = {q: big for q in mask}
+    order = sorted(mask, key=lambda q: (q[1], q[0]))
+    for sweep, steps in ((order, ((-1, 0, 1), (0, -1, 1), (-1, -1, 1.414), (1, -1, 1.414))),
+                         (order[::-1], ((1, 0, 1), (0, 1, 1), (1, 1, 1.414), (-1, 1, 1.414)))):
+        for x, y in sweep:
+            best = dist[(x, y)]
+            for dx, dy, cost in steps:
+                other = dist.get((x + dx, y + dy))
+                best = min(best, cost if other is None else other + cost)
+            dist[(x, y)] = best
+    return dist
+
+
+def height_field(mask, spec):
+    form = spec.get("form", "dome")
+    if form == "dome":  # a smooth inflated volume (Poisson), no ridge down the middle
+        dist = chamfer(mask)
+        h = {q: d * d * 0.5 for q, d in dist.items()}
+        for _ in range(40):
+            for x, y in mask:
+                h[(x, y)] = (h.get((x + 1, y), 0.0) + h.get((x - 1, y), 0.0) + h.get((x, y + 1), 0.0)
+                             + h.get((x, y - 1), 0.0) + 1.0) / 4
+        return {q: math.sqrt(v) * 1.15 for q, v in h.items()}
+    if form in ("bevel", "flat"):  # a flat face with sloped edges (boxes, planks, panels, blades)
+        width = 1 if form == "flat" else number(spec.get("bevel", 2), "bevel", 1, 16)
+        return {q: min(d, width) * 1.6 for q, d in chamfer(mask).items()}
+    # cylinder: round across the axis only (barrels, pillars, a sword grip, a log lying down)
+    axis = spec.get("axis", "v")
+    h = {}
+    runs = {}
+    for x, y in mask:
+        runs.setdefault(y if axis == "v" else x, []).append(x if axis == "v" else y)
+    for line, cells in runs.items():
+        cells.sort()
+        start = cells[0]
+        for i, c in enumerate(cells + [None]):
+            if c is None or (i and c != cells[i - 1] + 1):
+                end = cells[i - 1]
+                r = (end - start + 1) / 2
+                mid = (start + end + 1) / 2
+                for k in range(start, end + 1):
+                    t = (k + 0.5 - mid) / r
+                    q = (k, line) if axis == "v" else (line, k)
+                    h[q] = math.sqrt(max(0.0, 1 - t * t)) * r
+                if c is not None:
+                    start = c
+    return h
+
+
+def components(mask):
+    left, parts = set(mask), []
+    while left:
+        stack, part = [left.pop()], set()
+        while stack:
+            x, y = stack.pop()
+            part.add((x, y))
+            for q in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if q in left:
+                    left.remove(q)
+                    stack.append(q)
+        parts.append(part)
+    return parts
+
+
+def shade_material(mask, spec, colors, light):
+    """Shade every separate piece of a material region on its own (each plank, each coin)."""
+    out = {}
+    for part in components(mask):
+        out.update(shade_piece(part, spec, colors, light))
+    return out
+
+
+def shade_thin(mask, colors, light):
+    """Parts 1-4 px across (blades, rims, coin edges, straps) have no room for a volume: the edge facing
+    the light takes the light tone, the edge facing away the shadow tone, the middle the base tone."""
+    lx, ly = light
+    count = len(colors)
+    base = 1 if count > 2 else 0
+    out = {}
+    for x, y in mask:
+        lit = any((x + dx, y + dy) not in mask and dx * lx + dy * ly > 0.3 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+        dark = any((x + dx, y + dy) not in mask and dx * lx + dy * ly < -0.3 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+        level = base + 1 if lit and not dark else 0 if dark and not lit else base
+        out[(x, y)] = colors[min(level, count - 1)]
+    return out
+
+
+def shade_piece(mask, spec, colors, light):
+    """Pick a ramp tone per pixel from a height field lit by one 3D light, with a reflected-light rim on
+    the shadow side and single-pixel specks merged into their neighbours."""
+    if max(chamfer(mask).values()) <= 2.0:
+        return shade_thin(mask, colors, light)
+    lx, ly = light
+    lz = 0.9
+    n = math.sqrt(lx * lx + ly * ly + lz * lz)
+    Lx, Ly, Lz = lx / n, ly / n, lz / n
+    h = height_field(mask, spec)
+    count = len(colors)
+    highlight = spec.get("highlight", True)
+    cuts = {3: [0.38, 0.74], 4: [0.38, 0.74, 0.93], 5: [0.25, 0.5, 0.74, 0.93], 6: [0.2, 0.4, 0.58, 0.76, 0.93]}
+    thresholds = cuts.get(count, cuts[4])[:count - 1]
+    levels = {}
+    for (x, y) in mask:
+        gx = (h.get((x + 1, y), 0.0) - h.get((x - 1, y), 0.0)) / 2
+        gy = (h.get((x, y + 1), 0.0) - h.get((x, y - 1), 0.0)) / 2
+        norm = math.sqrt(gx * gx + gy * gy + 1.0)
+        i = (-gx * Lx - gy * Ly + Lz) / norm
+        level = sum(1 for t in thresholds if i > t)
+        if not highlight:
+            level = min(level, count - 2)
+        levels[(x, y)] = level
+    if count >= 4:  # reflected light: the shadow-side silhouette lifts one step, a core shadow stays inside
+        for (x, y), level in list(levels.items()):
+            if level == 0:
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    if (x + dx, y + dy) not in mask and dx * lx + dy * ly < -0.3:
+                        if levels.get((x - dx, y - dy)) == 0:
+                            levels[(x, y)] = 1
+                        break
+    for (x, y), level in list(levels.items()):  # clean-up: a lone tone inside a cluster joins its neighbours
+        around = [levels.get(q) for q in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))]
+        if None not in around and level not in around:
+            levels[(x, y)] = max(set(around), key=around.count)
+    return {q: colors[level] for q, level in levels.items()}
+
+
 def composite(size, layers, ctx, where, options=None, depth=0):
     """Draw layers back to front, then mirror, glow and outline. Used for documents, parts and frames."""
     options = options or {}
@@ -468,10 +664,11 @@ def composite(size, layers, ctx, where, options=None, depth=0):
     report = []
     late_blends = []
     solid = set()
+    material_of = {}
     for index, layer in enumerate(layers):
         lw = f"{where}.layers[{index}]" if where != "document" else f"layers[{index}]"
         object_keys(layer, {"name", "origin", "visible", "rows", "ops", "blend", "steps", "density", "shift", "outline",
-                            "after_glow", "solid", "mirror"}, lw)
+                            "after_glow", "solid", "mirror", "material"}, lw)
         name = layer.get("name")
         if not isinstance(name, str) or not name.strip() or name in names:
             raise ValueError(f"{lw}.name: expected nonempty unique layer name")
@@ -519,6 +716,25 @@ def composite(size, layers, ctx, where, options=None, depth=0):
                 for yy in range(size[1] // 2):
                     for xx in range(size[0]):
                         lp[xx, size[1] - 1 - yy] = lp[xx, yy]
+        if "material" in layer:
+            # The layer is a flat region; its pixels are replaced by the material shaded as a volume.
+            name = layer["material"]
+            if name not in ctx.materials:
+                raise ValueError(f"{lw}.material: unknown material {name!r} (have: {', '.join(ctx.materials) or 'none'})")
+            spec, colors = ctx.materials[name]
+            lp = image.load()
+            mask = {(x, y) for y in range(size[1]) for x in range(size[0]) if lp[x, y][3]}
+            for q, c in shade_material(mask, spec, colors, ctx.light).items():
+                lp[q] = c
+            # contact shadow: what is already below steps darker just outside this region, away from the light
+            below = canvas.load()
+            dx = 1 if ctx.light[0] < -0.3 else -1 if ctx.light[0] > 0.3 else 0
+            dy = 1 if ctx.light[1] < -0.3 else -1 if ctx.light[1] > 0.3 else 0
+            for x, y in mask:
+                q = (x + dx, y + dy)
+                if (dx or dy) and q not in mask and 0 <= q[0] < size[0] and 0 <= q[1] < size[1] and below[q][3]:
+                    below[q] = ctx.step(below[q], -1)
+            material_of.update({q: colors for q in mask})
         if "outline" in layer:  # this layer's own outline (smoke, glows and effects can stay unoutlined)
             symbol = layer["outline"]
             if not isinstance(symbol, str) or symbol not in ctx.palette or ctx.palette[symbol][3] == 0:
@@ -589,8 +805,19 @@ def composite(size, layers, ctx, where, options=None, depth=0):
         edge = [(x, y) for y in range(h) for x in range(w) if px[x, y][3] == 0 and any(
             0 <= x + dx < w and 0 <= y + dy < h and px[x + dx, y + dy][3]
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
-        for point in edge:
-            px[point] = ctx.palette[symbol]
+        selective = options.get("outline_style") == "selective"
+        lx, ly = ctx.light
+        for x, y in edge:
+            color = ctx.palette[symbol]
+            if selective:
+                # Light-facing edges take the darkest tone of the material they border; the shadow side
+                # and anything without a material keep the outline color.
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    q = (x + dx, y + dy)
+                    if q in material_of and (-dx) * lx + (-dy) * ly > 0.3:
+                        color = material_of[q][0]
+                        break
+            px[x, y] = color
     return canvas if depth else (canvas, report)
 
 
@@ -716,7 +943,7 @@ def apply_glow(px, size, glow, ctx, where):
 
 
 DOCUMENT_KEYS = {"version", "size", "palette", "layers", "meta", "outline", "ramps", "parts", "mirror", "glow",
-                 "animation", "lights"}
+                 "animation", "lights", "materials", "light", "outline_style"}
 
 
 def document_context(document):
@@ -733,7 +960,14 @@ def document_context(document):
         raise ValueError("parts: expected an object of named parts")
     if not isinstance(document.get("glow", []), list):
         raise ValueError("glow: expected a list")
-    return Context(palette, ramps, parts)
+    if document.get("outline_style", "solid") not in ("solid", "selective"):
+        raise ValueError("outline_style: expected solid or selective")
+    ramps = list(ramps)
+    materials = expand_materials(document, palette, ramps)  # adds generated tones to the palette and ramps
+    ctx = Context(palette, ramps, parts)
+    ctx.materials = materials
+    ctx.light = light_direction(document)
+    return ctx
 
 
 def render_document(document):
@@ -825,7 +1059,10 @@ def render_frames(document):
             operation = {key: value for key, value in edit.items() if key not in ("layer", "move", "visible")}
             if operation:
                 layer.setdefault("ops", []).append(operation)
-        frame_ctx = Context(ctx.palette, document.get("ramps", []), frame_parts) if frame_parts != ctx.parts else ctx
+        frame_ctx = ctx
+        if frame_parts != ctx.parts:
+            frame_ctx = Context(ctx.palette, list(ctx.ramp_names), frame_parts)
+            frame_ctx.materials, frame_ctx.light = ctx.materials, ctx.light
         options = dict(document, **{k: frame[k] for k in ("glow", "lights") if k in frame})  # flickering light
         image, report = composite(size, layers, frame_ctx, "document", options)
         out.append((image, ms, report))
@@ -904,7 +1141,7 @@ def ascii_art(document, frame=0, box=None):
         image = frames[frame][0]
     else:
         image = render_document(document)[0]
-    palette = parse_palette(document["palette"])
+    palette = document_context(document).palette  # includes generated material tones
     symbol_of = {}
     for symbol, rgba in palette.items():
         if rgba[3]:
