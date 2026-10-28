@@ -4,6 +4,7 @@
     python lint.py OUT_DIR                 # a rig2d output folder (reads animation.json and the sheets)
     python lint.py sprite.png other.png    # single images
     python lint.py OUT_DIR --json report.json
+    python lint.py fx.anim.json --fx         # an emissive effect: skips lighting, thin and stray
 
 Checks (warnings, not failures; judge them against the intent):
   colors      more opaque colors than a small sprite usually needs
@@ -229,6 +230,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("paths", nargs="+")
     parser.add_argument("--json", help="also write the full report here")
+    parser.add_argument("--fx", action="store_true",
+                        help="an emissive effect: skip the lighting, thin and stray checks (sparks and glows are meant)")
     args = parser.parse_args(argv)
     full = {}
     total = 0
@@ -237,6 +240,9 @@ def main(argv=None):
             print(f"error: {p}: expected a PNG, a PREFIX.anim.json or a folder with animation.json", file=sys.stderr)
             return 2
         report = lint_path(p)
+        if args.fx:
+            for entry in report.values():
+                entry["findings"] = [f for f in entry["findings"] if not f.startswith(("lighting", "thin", "stray"))]
         full[str(p)] = report
         for name, entry in report.items():
             total += len(entry["findings"])

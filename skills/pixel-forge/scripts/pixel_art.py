@@ -100,7 +100,8 @@ EXTRA_OPS = {
     "stamp": {"op", "part", "xy", "flip", "swap"},
     "scatter": {"op", "parts", "xy", "size", "count", "seed", "on", "clip", "flip"},
     "grid": {"op", "xy", "rows"},
-    "bolt": {"op", "from", "to", "colors", "seed", "jag", "width", "branches", "fade", "flicker"},
+    "bolt": {"op", "from", "to", "colors", "seed", "jag", "width", "branches", "fade", "flicker", "taper", "rim", "reach"},
+    "ring": {"op", "center", "radius", "colors", "width", "squash", "breakup", "seed", "arc"},
     "flames": {"op", "xy", "size", "colors", "count", "t", "period", "seed", "lean"},
     "particles": {"op", "origin", "colors", "count", "t", "period", "life", "speed", "angle", "spread", "gravity",
                   "seed", "size", "mode", "trail"},
@@ -310,7 +311,7 @@ def paint_extra(image, op, ctx, origin, where, depth):
     def density():
         return number(op.get("density", 1), where + ".density", 0, 1)
 
-    if kind in ("bolt", "flames", "particles", "smoke"):
+    if kind in ("bolt", "ring", "flames", "particles", "smoke"):
         # Procedural effects (vfx.py): intensities 0..1 mapped onto a dark-to-light `colors` ramp.
         import importlib.util
         spec_ = importlib.util.spec_from_file_location("vfx", Path(__file__).with_name("vfx.py"))
@@ -320,15 +321,24 @@ def paint_extra(image, op, ctx, origin, where, depth):
         num = lambda key, default, lo=-1024, hi=1024: number(op.get(key, default), f"{where}.{key}", lo, hi)
         if kind == "bolt":
             a, b = ipair(op.get("from"), where + ".from"), ipair(op.get("to"), where + ".to")
-            cells = vfx.bolt((a[0] + ox, a[1] + oy), (b[0] + ox, b[1] + oy), seed=int(num("seed", 1)),
+            cells = vfx.bolt((a[0] + ox, a[1] + oy), (b[0] + ox, b[1] + oy), seed=int(num("seed", 1, -2**31, 2**31)),
                              jag=num("jag", 0.35, 0, 1), width=num("width", 2, 0.5, 12),
                              branches=int(num("branches", 2, 0, 12)), fade=num("fade", 0, 0, 1),
-                             flicker=op.get("flicker"))
+                             flicker=op.get("flicker"), taper=num("taper", 0.6, 0.5, 12), rim=op.get("rim", True) is not False,
+                             reach=num("reach", 1, 0, 4))
+        elif kind == "ring":
+            c = pair(op.get("center"), where + ".center", -2048, 2048)
+            arc = op.get("arc")
+            if arc is not None:
+                arc = pair(arc, where + ".arc", -360, 720)
+            cells = vfx.ring(c[0] + ox, c[1] + oy, num("radius", 8, 0.5, 2048), width=num("width", 2, 0.5, 256),
+                             squash=num("squash", 1, 0.05, 4), breakup=num("breakup", 0, 0, 1), seed=int(num("seed", 1, -2**31, 2**31)),
+                             arc=arc)
         elif kind == "flames":
             x0, y0 = ipair(op.get("xy"), where + ".xy")
             fw, fh = pair(op.get("size"), where + ".size", 1, 1024)
             cells = vfx.flames(x0 + ox, y0 + oy + fh - 1, fw, fh, count=int(num("count", 4, 1, 64)), t=num("t", 0),
-                               period=int(num("period", 8, 1, 240)), seed=int(num("seed", 1)), lean=num("lean", 0))
+                               period=int(num("period", 8, 1, 240)), seed=int(num("seed", 1, -2**31, 2**31)), lean=num("lean", 0))
         elif kind == "particles":
             x0, y0 = ipair(op.get("origin"), where + ".origin")
             mode = op.get("mode", "loop")
@@ -337,15 +347,17 @@ def paint_extra(image, op, ctx, origin, where, depth):
             cells = vfx.particles(x0 + ox, y0 + oy, count=int(num("count", 10, 1, 512)), t=num("t", 0),
                                   period=int(num("period", 8, 1, 240)), life=op.get("life"), speed=num("speed", 1.5),
                                   angle=num("angle", -90), spread=num("spread", 60, 0, 360), gravity=num("gravity", 0),
-                                  seed=int(num("seed", 1)), size=num("size", 2, 0.5, 16), mode=mode,
+                                  seed=int(num("seed", 1, -2**31, 2**31)), size=num("size", 2, 0.5, 16), mode=mode,
                                   trail=int(num("trail", 0, 0, 16)))
         else:
             x0, y0 = ipair(op.get("origin"), where + ".origin")
             cells = vfx.smoke(x0 + ox, y0 + oy, count=int(num("count", 4, 1, 64)), t=num("t", 0),
                               period=int(num("period", 12, 1, 240)), rise=num("rise", 1.0), drift=num("drift", 0.3),
-                              radius=num("radius", 2.0, 0.5, 64), grow=num("grow", 0.25), seed=int(num("seed", 1)))
+                              radius=num("radius", 2.0, 0.5, 64), grow=num("grow", 0.25), seed=int(num("seed", 1, -2**31, 2**31)))
         top = len(ramp) - 1
         for (x, y), v in cells.items():
+            if kind == "bolt" and v <= 0 and 0 <= x < size[0] and 0 <= y < size[1] and px[x, y][3]:
+                continue  # a bolt's dark rim never paints over what is already there (braided bolts stay seamless)
             put(px, size, x, y, ramp[max(0, min(top, round(v * top)))])
     elif kind == "grid":
         # Paste rows of palette symbols at xy; a space leaves the pixel below untouched. This is the

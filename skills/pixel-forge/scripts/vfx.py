@@ -66,15 +66,19 @@ def _jagged(start, end, rng, jag, min_seg=3.0):
     snapped = [points[0]]
     for p in points[1:]:
         snapped.append(_snap_slope(snapped[-1], p))
+    snapped[-1] = end  # the bolt lands exactly on `to`, so chained bolts join up
     return snapped
 
 
-def bolt(start, end, seed=1, jag=0.35, width=2.0, branches=2, fade=0.0, flicker=None):
+def bolt(start, end, seed=1, jag=0.35, width=2.0, branches=2, fade=0.0, flicker=None, taper=0.6, rim=True, reach=1.0):
     """A forked lightning bolt from start to end. width tapers from the start to the end; the centre line
     is the hot core, the sides cool to the rim. branches: side forks off the main path (each with one
     level of sub-forks). fade 0..1: the bolt breaks into separate segments and cools (dying arcs).
     flicker: a second seed that only re-jitters the forks, so the main path can stay steady between
-    frames while the branches crackle."""
+    frames while the branches crackle. taper: the width at the end (thin it to 0.5 for a needle tip, keep
+    it near width for an even beam). rim=False drops the dark outer rim (a thin core with a soft glow,
+    for dark ground or a bolt inside a brighter effect). reach scales the fork length (forks run 25-50%
+    of the distance to the end; 0.4 keeps them short on a long bolt)."""
     rng = random.Random(seed)
     path = _jagged(start, end, rng, jag)
     out = {}
@@ -99,24 +103,54 @@ def bolt(start, end, seed=1, jag=0.35, width=2.0, branches=2, fade=0.0, flicker=
                             core = heat * (1 - fade * 0.7) * (1 - 0.65 * d / (r + 0.5))
                             _merge(out, {(x + dx, y + dy): max(0.0, core)})
             walked += seg
-    stroke(path, width, 0.6, 1.0)
+    stroke(path, width, taper, 1.0)
     for _ in range(branches):
         i = frng.randrange(1, max(2, len(path) - 1))
         a = path[i]
         main = math.atan2(end[1] - start[1], end[0] - start[0])
         ang = main + frng.choice([-1, 1]) * frng.uniform(0.45, 1.0)
-        length = math.dist(a, end) * frng.uniform(0.25, 0.5)
+        length = math.dist(a, end) * frng.uniform(0.25, 0.5) * reach
         b = (a[0] + math.cos(ang) * length, a[1] + math.sin(ang) * length)
         sub = _jagged(a, b, frng, jag * 1.2, 2.0)
-        stroke(sub, max(0.6, width * 0.5), 0.5, 0.75)
+        stroke(sub, max(0.5, min(width * 0.5, taper + 0.6)), 0.5, 0.75)
         if len(sub) > 3 and frng.random() < 0.6:
             c = sub[len(sub) // 2]
             ang2 = ang + frng.choice([-1, 1]) * frng.uniform(0.4, 0.9)
             d = (c[0] + math.cos(ang2) * length * 0.4, c[1] + math.sin(ang2) * length * 0.4)
             stroke(_jagged(c, d, frng, jag * 1.3, 2.0), 0.5, 0.5, 0.55)
-    rim = {(x + dx, y + dy): 0.0 for (x, y) in out for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
-           if (x + dx, y + dy) not in out}
-    out.update(rim)  # a dark rim one pixel outside, so the bolt reads on bright ground
+    if rim:
+        edge = {(x + dx, y + dy): 0.0 for (x, y) in out for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                if (x + dx, y + dy) not in out}
+        out.update(edge)  # a dark rim one pixel outside, so the bolt reads on bright ground
+    return out
+
+
+def ring(cx, cy, radius, width=2.0, squash=1.0, breakup=0.0, seed=1, arc=None):
+    """A ring or shockwave band around (cx, cy): the outer edge is the hottest (1.0) and it cools inward
+    over `width` pixels. squash < 1 flattens it into a ground ellipse (0.4-0.5 for a top-down 3/4 view).
+    breakup 0..1 cuts it into separate arcs (a dying shockwave); arc = [from, to] in screen degrees
+    (0 = right, 90 = down) keeps only that part: [0, 180] is the front half, [180, 360] the back half."""
+    rng = random.Random(seed)
+    gaps = []
+    if breakup > 0:
+        for _ in range(max(1, round(breakup * 8))):
+            start = rng.uniform(0, 360)
+            gaps.append((start, start + breakup * rng.uniform(15, 50)))
+    out = {}
+    reach = radius + 1
+    for y in range(int(cy - reach * squash) - 1, int(cy + reach * squash) + 2):
+        for x in range(int(cx - reach) - 1, int(cx + reach) + 2):
+            dx, dy = x - cx, (y - cy) / max(squash, 0.05)
+            d = math.hypot(dx, dy)
+            inside = radius - d
+            if not -0.5 <= inside < width:
+                continue
+            ang = math.degrees(math.atan2(dy, dx)) % 360
+            if arc is not None and not (arc[0] <= ang <= arc[1] or arc[0] <= ang + 360 <= arc[1]):
+                continue
+            if any(a <= ang <= b or a <= ang + 360 <= b for a, b in gaps):
+                continue
+            out[(x, y)] = max(0.0, 1 - max(0.0, inside) / max(width, 0.5))
     return out
 
 

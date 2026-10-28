@@ -12,7 +12,12 @@ Each --layer is drawn in order (first = furthest back) with its pivot on --at (i
   PREFIX.anim.json is read with its PREFIX.strip.png, a rig2d/sheet.py animation.json with "#name"
   (OUT/animation.json#idle). Pivots come from the manifest (default: bottom centre).
 - image:FILE.png@PX,PY is a still sprite (a character standing in the effect), pivot PX,PY.
-- move:DX,DY moves the next layer by DX,DY pixels per frame (a projectile flying).
+- Modifiers for the next layer: move:DX,DY moves it DX,DY pixels per frame (a projectile flying);
+  offset:DX,DY places its pivot DX,DY away from --at (an impact on the target, not the caster);
+  wait:N hides it for the first N frames; once hides it after its last frame instead of holding it.
+  A bolt that flies, then hits a target 108 px away:
+  --layer move:6,0 --layer once --layer bolt:bolt.anim.json*3
+  --layer offset:108,0 --layer wait:18 --layer hit:impact.anim.json
 Layers shorter than the longest hold their last frame. Frame timing follows the first animated layer.
 """
 import argparse
@@ -66,31 +71,41 @@ def main(argv=None):
         if args.crop:
             x, y, w, h = args.crop
             bg = bg.crop((x, y, x + w, y + h))
-        layers, move = [], None
+        layers, mods = [], {}
         for spec in args.layer:
             kind, _, rest = spec.partition(":")
             if kind == "image":
                 file, _, pv = rest.partition("@")
                 img = Image.open(file).convert("RGBA")
                 pivot = tuple(int(v) for v in pv.split(",")) if pv else (img.width // 2, img.height - 1)
-                layers.append(([(img, None, pivot)], move))
-            elif kind == "move":
-                move = tuple(float(v) for v in rest.split(","))
+                layers.append(([(img, None, pivot)], mods))
+            elif kind in ("move", "offset"):
+                mods[kind] = tuple(float(v) for v in rest.split(","))
+                continue
+            elif kind == "wait":
+                mods["wait"] = int(rest)
+                continue
+            elif spec == "once":
+                mods["once"] = True
                 continue
             else:
-                layers.append((sequence(rest), move))
-            move = None
+                layers.append((sequence(rest), mods))
+            mods = {}
     except (OSError, ValueError, KeyError, StopIteration) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     timed = next((seq for seq, _ in layers if seq[0][1] is not None), None)
-    count = max(len(seq) for seq, _ in layers)
+    count = max(len(seq) + m.get("wait", 0) for seq, m in layers)
     pictures, durations = [], []
     for i in range(count):
         canvas = bg.copy()
-        for seq, mv in layers:
-            img, _, (px, py) = seq[min(i, len(seq) - 1)]
-            dx, dy = (mv[0] * i, mv[1] * i) if mv else (0, 0)
+        for seq, m in layers:
+            j = i - m.get("wait", 0)
+            if j < 0 or (m.get("once") and j >= len(seq)):
+                continue
+            img, _, (px, py) = seq[min(j, len(seq) - 1)]
+            mv, off = m.get("move", (0, 0)), m.get("offset", (0, 0))
+            dx, dy = mv[0] * j + off[0], mv[1] * j + off[1]
             canvas.alpha_composite(img, (round(args.at[0] - px + dx), round(args.at[1] - py + dy))) \
                 if 0 <= args.at[0] - px + dx < canvas.width * 2 else None
         big = canvas.resize((canvas.width * args.scale, canvas.height * args.scale), Image.NEAREST)

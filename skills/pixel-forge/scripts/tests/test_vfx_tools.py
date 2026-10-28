@@ -38,6 +38,16 @@ class VfxToolTests(unittest.TestCase):
         self.assertLessEqual(box[1], 3)
         self.assertGreaterEqual(box[3], 44)
 
+    def test_bolt_without_rim_and_ring_halves(self):
+        doc = fx_doc([[{"layer": "fx", "op": "bolt", "from": [10, 2], "to": [30, 45], "colors": "abcd", "seed": 3,
+                        "rim": False, "width": 1.5, "taper": 0.5}]])
+        self.assertNotIn((0x10, 0x20, 0x40), self.colors(pixel_art.render_frames(doc)[0][0]))
+        front = fx_doc([[{"layer": "fx", "op": "ring", "center": [24, 24], "radius": 18, "squash": 0.45,
+                          "colors": "abcd", "arc": [0, 180]}]])
+        box = pixel_art.render_frames(front)[0][0].getbbox()
+        self.assertGreaterEqual(box[1], 23)  # only the front (lower) half of the flattened ring
+        self.assertLessEqual(box[3] - box[1], 13)
+
     def test_flames_loop_closes_and_moves(self):
         frames = [[{"layer": "fx", "op": "flames", "xy": [8, 10], "size": [30, 30], "colors": "roy", "t": t, "period": 6,
                     "seed": 2}] for t in range(7)]
@@ -83,6 +93,11 @@ class VfxToolTests(unittest.TestCase):
                      "--out", temp / "comp.gif")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((temp / "comp.gif").is_file())
+        result = run("composite.py", "--bg", temp / "bg.png", "--at", 10, 55, "--layer", "move:4,0", "--layer", "once",
+                     "--layer", f"fx:{temp / 'fx.anim.json'}*2", "--layer", "offset:40,0", "--layer", "wait:8",
+                     "--layer", f"hit:{temp / 'fx.anim.json'}", "--out", temp / "seq.gif", "--scale", 1)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("(12 frames)", result.stdout)  # 8 flying frames, then the 4-frame hit
         result = run("export.py", temp / "fx.anim.json", "--out", temp / "build", "--name", "spell")
         self.assertEqual(result.returncode, 0, result.stderr)
         ase = json.loads((temp / "build" / "spell.aseprite.json").read_text())
