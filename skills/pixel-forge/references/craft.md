@@ -89,6 +89,16 @@ flame tongue, 4 frames (w core, l body, m tips)
 .lwwl    lwwl.    .lwwl    lwwwl
 ```
 
+## Effects (VFX)
+
+- Build effects from the `bolt`, `flames`, `particles` and `smoke` operations (`format.md`) instead of hand-scripting shapes; drive them with `t` so they persist between frames.
+- Beats: anticipation (a charge, a sigil, sparks gathering: 2-3 frames), the peak (1-2 frames, the brightest and biggest, held longest), the release or impact, then a decay that breaks the shape apart (arcs dying, embers falling, smoke thinning); never just fade the whole thing.
+- Size against the characters: a hit spark is about half a character tall, a big spell up to two or three characters; leave headroom so the peak frame never clips the canvas.
+- Readable on both bright and dark ground: a dark rim under bright effects (lightning, fire) and a coloured rim around dark ones (black flames, shadow magic); a white-hot core only at the hottest point.
+- Effects that wrap a character are two layers: `group: back` behind the sprite, `group: front` in front of it; keep the character's body mostly clear.
+- Preview at game scale on a screenshot of the game with `scripts/composite.py` before judging; an effect that reads enlarged can vanish at 1x.
+- A projectile is a loop with a steady head (only the tail and sparks change); the impact starts on its own bright frame; a lingering effect (a burn, a poison cloud) is a separate quiet loop.
+
 ## Animation
 
 - Key poses first, then in-betweens; hold key frames longer (a strike 1–2 frames, the recovery longer).

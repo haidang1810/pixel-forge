@@ -32,6 +32,20 @@ def main(argv=None):
     if not (args.old and args.new and args.dir):
         print("error: give OLD NEW --dir AB_DIR (or --reveal AB_DIR)", file=sys.stderr)
         return 2
+    from PIL import Image
+    pairs_to_check = [(args.old, args.new)] + ([tuple(args.extra)] if args.extra else [])
+    same = True
+    for old_file, new_file in pairs_to_check:
+        with Image.open(old_file) as a_img, Image.open(new_file) as b_img:
+            if a_img.size != b_img.size:
+                print(f"warning: {old_file} and {new_file} differ in size; the size itself gives the order away",
+                      file=sys.stderr)
+                same = False
+            elif a_img.convert("RGBA").tobytes() != b_img.convert("RGBA").tobytes():
+                same = False
+    if same:
+        print("error: the two versions are pixel-identical; nothing to compare (did the fix render?)", file=sys.stderr)
+        return 2
     out = Path(args.dir)
     out.mkdir(parents=True, exist_ok=True)
     new_letter = secrets.choice("ab")

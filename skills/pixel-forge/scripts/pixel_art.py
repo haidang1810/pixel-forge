@@ -100,6 +100,11 @@ EXTRA_OPS = {
     "stamp": {"op", "part", "xy", "flip", "swap"},
     "scatter": {"op", "parts", "xy", "size", "count", "seed", "on", "clip", "flip"},
     "grid": {"op", "xy", "rows"},
+    "bolt": {"op", "from", "to", "colors", "seed", "jag", "width", "branches", "fade", "flicker"},
+    "flames": {"op", "xy", "size", "colors", "count", "t", "period", "seed", "lean"},
+    "particles": {"op", "origin", "colors", "count", "t", "period", "life", "speed", "angle", "spread", "gravity",
+                  "seed", "size", "mode", "trail"},
+    "smoke": {"op", "origin", "colors", "count", "t", "period", "rise", "drift", "radius", "grow", "seed"},
 }
 
 
@@ -305,7 +310,44 @@ def paint_extra(image, op, ctx, origin, where, depth):
     def density():
         return number(op.get("density", 1), where + ".density", 0, 1)
 
-    if kind == "grid":
+    if kind in ("bolt", "flames", "particles", "smoke"):
+        # Procedural effects (vfx.py): intensities 0..1 mapped onto a dark-to-light `colors` ramp.
+        import importlib.util
+        spec_ = importlib.util.spec_from_file_location("vfx", Path(__file__).with_name("vfx.py"))
+        vfx = importlib.util.module_from_spec(spec_)
+        spec_.loader.exec_module(vfx)
+        ramp = symbols(op.get("colors"), "colors")
+        num = lambda key, default, lo=-1024, hi=1024: number(op.get(key, default), f"{where}.{key}", lo, hi)
+        if kind == "bolt":
+            a, b = ipair(op.get("from"), where + ".from"), ipair(op.get("to"), where + ".to")
+            cells = vfx.bolt((a[0] + ox, a[1] + oy), (b[0] + ox, b[1] + oy), seed=int(num("seed", 1)),
+                             jag=num("jag", 0.35, 0, 1), width=num("width", 2, 0.5, 12),
+                             branches=int(num("branches", 2, 0, 12)), fade=num("fade", 0, 0, 1),
+                             flicker=op.get("flicker"))
+        elif kind == "flames":
+            x0, y0 = ipair(op.get("xy"), where + ".xy")
+            fw, fh = pair(op.get("size"), where + ".size", 1, 1024)
+            cells = vfx.flames(x0 + ox, y0 + oy + fh - 1, fw, fh, count=int(num("count", 4, 1, 64)), t=num("t", 0),
+                               period=int(num("period", 8, 1, 240)), seed=int(num("seed", 1)), lean=num("lean", 0))
+        elif kind == "particles":
+            x0, y0 = ipair(op.get("origin"), where + ".origin")
+            mode = op.get("mode", "loop")
+            if mode not in ("loop", "burst"):
+                raise ValueError(f"{where}.mode: expected loop or burst")
+            cells = vfx.particles(x0 + ox, y0 + oy, count=int(num("count", 10, 1, 512)), t=num("t", 0),
+                                  period=int(num("period", 8, 1, 240)), life=op.get("life"), speed=num("speed", 1.5),
+                                  angle=num("angle", -90), spread=num("spread", 60, 0, 360), gravity=num("gravity", 0),
+                                  seed=int(num("seed", 1)), size=num("size", 2, 0.5, 16), mode=mode,
+                                  trail=int(num("trail", 0, 0, 16)))
+        else:
+            x0, y0 = ipair(op.get("origin"), where + ".origin")
+            cells = vfx.smoke(x0 + ox, y0 + oy, count=int(num("count", 4, 1, 64)), t=num("t", 0),
+                              period=int(num("period", 12, 1, 240)), rise=num("rise", 1.0), drift=num("drift", 0.3),
+                              radius=num("radius", 2.0, 0.5, 64), grow=num("grow", 0.25), seed=int(num("seed", 1)))
+        top = len(ramp) - 1
+        for (x, y), v in cells.items():
+            put(px, size, x, y, ramp[max(0, min(top, round(v * top)))])
+    elif kind == "grid":
         # Paste rows of palette symbols at xy; a space leaves the pixel below untouched. This is the
         # read-back loop: `pixel_art.py ascii` prints the art in the same symbols, you change a few.
         x0, y0 = ipair(op.get("xy"), where + ".xy")
@@ -654,6 +696,62 @@ def shade_piece(mask, spec, colors, light):
     return {q: colors[level] for q, level in levels.items()}
 
 
+def _scale2x(grid):
+    h, w = len(grid), len(grid[0])
+    out = [[None] * (w * 2) for _ in range(h * 2)]
+    for y in range(h):
+        for x in range(w):
+            p = grid[y][x]
+            a = grid[y - 1][x] if y > 0 else p
+            b = grid[y][x + 1] if x < w - 1 else p
+            c = grid[y][x - 1] if x > 0 else p
+            d = grid[y + 1][x] if y < h - 1 else p
+            out[2 * y][2 * x] = a if c == a and c != d and a != b else p
+            out[2 * y][2 * x + 1] = b if a == b and a != c and b != d else p
+            out[2 * y + 1][2 * x] = c if d == c and d != b and c != a else p
+            out[2 * y + 1][2 * x + 1] = d if b == d and b != a and d != c else p
+    return out
+
+
+def transform_layer(image, spec, where):
+    """RotSprite-style rotation and scaling around a pivot: Scale2x three times, then nearest sampling, so
+    edges stay clean and only the layer's own colors appear.
+    spec: {"pivot": [x, y], "rotate": degrees (clockwise), "scale": [sx, sy]} (a negative scale flips;
+    scale [1, 0.5] foreshortens a lid tilting away)."""
+    object_keys(spec, {"pivot", "rotate", "scale"}, where)
+    px_, py_ = ipair(spec.get("pivot"), where + ".pivot")
+    ang = math.radians(number(spec.get("rotate", 0), where + ".rotate", -720, 720))
+    sc = spec.get("scale", [1, 1])
+    if not isinstance(sc, list) or len(sc) != 2:
+        raise ValueError(f"{where}.scale: expected [sx, sy]")
+    sx, sy = (number(v, where + ".scale", -16, 16) for v in sc)
+    if abs(sx) < 0.05 or abs(sy) < 0.05:
+        return Image.new("RGBA", image.size)
+    box = image.getbbox()
+    if not box:
+        return image
+    w, h = image.size
+    src = image.load()
+    grid = [[src[x, y] if src[x, y][3] else None for x in range(w)] for y in range(h)]
+    big = grid
+    for _ in range(3):
+        big = _scale2x(big)
+    cos, sin = math.cos(-ang), math.sin(-ang)
+    out = Image.new("RGBA", image.size)
+    dst = out.load()
+    for y in range(h):
+        for x in range(w):
+            rx, ry = x + 0.5 - px_, y + 0.5 - py_
+            ux, uy = rx * cos - ry * sin, rx * sin + ry * cos  # undo the rotation
+            ux, uy = ux / sx + px_, uy / sy + py_            # undo the scale
+            bx, by = math.floor(ux * 8), math.floor(uy * 8)
+            if 0 <= bx < w * 8 and 0 <= by < h * 8:
+                c = big[by][bx]
+                if c is not None:
+                    dst[x, y] = c
+    return out
+
+
 def composite(size, layers, ctx, where, options=None, depth=0):
     """Draw layers back to front, then mirror, glow and outline. Used for documents, parts and frames."""
     options = options or {}
@@ -668,7 +766,7 @@ def composite(size, layers, ctx, where, options=None, depth=0):
     for index, layer in enumerate(layers):
         lw = f"{where}.layers[{index}]" if where != "document" else f"layers[{index}]"
         object_keys(layer, {"name", "origin", "visible", "rows", "ops", "blend", "steps", "density", "shift", "outline",
-                            "after_glow", "solid", "mirror", "material"}, lw)
+                            "after_glow", "solid", "mirror", "material", "group", "transform"}, lw)
         name = layer.get("name")
         if not isinstance(name, str) or not name.strip() or name in names:
             raise ValueError(f"{lw}.name: expected nonempty unique layer name")
@@ -745,6 +843,8 @@ def composite(size, layers, ctx, where, options=None, depth=0):
                 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
             for point in edge:
                 lp[point] = ctx.palette[symbol]
+        if "transform" in layer:  # rotate / scale the finished layer around a pivot (a lid on its hinge)
+            image = transform_layer(image, layer["transform"], lw + ".transform")
         if "shift" in layer:  # move the finished layer, art and all (clips at the canvas edge)
             dx, dy = ipair(layer["shift"], lw + ".shift")
             moved = Image.new("RGBA", size)
@@ -1056,7 +1156,9 @@ def render_frames(document):
                 layer["shift"] = [sx + dx, sy + dy]
             if "visible" in edit:
                 layer["visible"] = edit["visible"]
-            operation = {key: value for key, value in edit.items() if key not in ("layer", "move", "visible")}
+            if "transform" in edit:
+                layer["transform"] = edit["transform"]
+            operation = {key: value for key, value in edit.items() if key not in ("layer", "move", "visible", "transform")}
             if operation:
                 layer.setdefault("ops", []).append(operation)
         frame_ctx = ctx
@@ -1157,6 +1259,34 @@ def ascii_art(document, frame=0, box=None):
     return "\n".join(lines)
 
 
+def group_document(document, group):
+    """The document with only the layers of one `group` (and the frame edits that touch them)."""
+    doc = copy.deepcopy(document)
+    doc["layers"] = [l for l in doc["layers"] if l.get("group") == group]
+    names = {l["name"] for l in doc["layers"]}
+    if "animation" in doc:
+        for frame in doc["animation"]["frames"]:
+            frame["edits"] = [e for e in frame.get("edits", []) if e.get("layer") in names or "part" in e]
+    return doc
+
+
+def write_groups(document, prefix, scale):
+    """Layers tagged with a `group` (for example back and front of a character) are also written per
+    group, so the game can draw one group behind a sprite and the other in front of it."""
+    groups = sorted({l.get("group") for l in document.get("layers", []) if isinstance(l, dict) and l.get("group")})
+    paths = {}
+    for group in groups:
+        doc = group_document(document, group)
+        gprefix = Path(f"{prefix}.{group}")
+        image, _ = render_document(doc)
+        image.save(Path(str(gprefix) + ".png"))
+        paths[f"{group}_png"] = Path(str(gprefix) + ".png")
+        if "animation" in doc:
+            for key, path in write_animation(doc, gprefix, scale).items():
+                paths[f"{group}_{key}"] = path
+    return paths
+
+
 def write_animation(document, prefix, scale):
     """A horizontal strip, a manifest in the rig2d schema, a looping preview GIF and a frames preview."""
     frames = render_frames(document)
@@ -1234,6 +1364,7 @@ def main(argv=None):
         enlarged.save(paths["preview"], format="PNG")
         if "animation" in source:
             paths.update(write_animation(source, args.out, args.scale))
+        paths.update(write_groups(source, args.out, args.scale))
         if grid_image:
             grid_image.save(paths["grid"], format="PNG")
         write_json(paths["report"], report)

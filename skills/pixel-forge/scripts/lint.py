@@ -7,7 +7,8 @@
 
 Checks (warnings, not failures; judge them against the intent):
   colors      more opaque colors than a small sprite usually needs
-  stray       pixels unlike all 8 neighbours (noise, broken clusters)
+  stray       pixels unlike all 8 neighbours (noise, broken clusters); clear highlights such as
+              glints, sparks and rivets (lighter than every neighbour) are not counted
   muddy       touching colors so close in value that shapes blur together
   lighting    top-facing edges no lighter than bottom-facing ones (pillow shading or a flipped light)
   thin        silhouette made mostly of outline (noodle limbs, unreadable at 1x)
@@ -122,8 +123,11 @@ def lint_frame(image):
         x, y = p
         return any(opaque.get((x + ax, y)) == outline and opaque.get((x, y + ay)) == outline
                    for ax in (1, -1) for ay in (1, -1))
+    def glint(p, c):  # a deliberate highlight: clearly lighter than everything around it (sparks, rivets)
+        around = [opaque.get((p[0] + dx, p[1] + dy)) for dx, dy in N8]
+        return all(a is None or luminance(c) > luminance(a) + 0.12 for a in around)
     stray = [p for p, c in fill.items()
-             if all(opaque.get((p[0] + dx, p[1] + dy)) != c for dx, dy in N8) and not corner(p)]
+             if all(opaque.get((p[0] + dx, p[1] + dy)) != c for dx, dy in N8) and not corner(p) and not glint(p, c)]
     metrics["stray"] = len(stray)
     if fill and len(stray) > max(3, 0.02 * len(fill)):
         findings.append(f"stray: {len(stray)} lone pixels (e.g. at {stray[0]}); merge them into clusters")
@@ -208,6 +212,12 @@ def lint_path(path):
             if name in GROUNDED and len(bottoms) > 1:
                 notes.append(f"ground: grounded frames end on rows {sorted(bottoms)}; the feet should stay on one row")
             report[name] = {"frames": [m for m, _ in entries], "findings": notes}
+    elif path.name.endswith(".anim.json"):  # a pixel_art animation: lint every frame of its strip
+        anim = json.loads(path.read_text(encoding="utf-8-sig"))
+        with Image.open(path.with_name(path.name[:-len(".anim.json")] + ".strip.png")) as sheet:
+            sheet = sheet.convert("RGBA")
+            entries = [lint_frame(sheet.crop((x, y, x + w, y + h))) for x, y, w, h in (f["rect"] for f in anim["frames"])]
+        report[path.name[:-len(".anim.json")]] = {"frames": [m for m, _ in entries], "findings": summarize(entries)}
     else:
         with Image.open(path) as image:
             metrics, findings = lint_frame(image.convert("RGBA"))
@@ -224,7 +234,7 @@ def main(argv=None):
     total = 0
     for p in args.paths:
         if not Path(p).exists() or (Path(p).is_dir() and not (Path(p) / "animation.json").is_file()):
-            print(f"error: {p}: expected a PNG or a folder with animation.json", file=sys.stderr)
+            print(f"error: {p}: expected a PNG, a PREFIX.anim.json or a folder with animation.json", file=sys.stderr)
             return 2
         report = lint_path(p)
         full[str(p)] = report

@@ -75,7 +75,27 @@ ROLES = {
     "elite": (["inverted-triangle", "triangle"], ["proud and deliberate", "aggressive and driven"]),
     "undead": (["broken"], ["stiff and jerky", "tired and droopy"]),
     "beast": (["triangle", "square"], ["aggressive and driven", "nervy and darting", "heavy and sluggish"]),
+    # Props, items and effects: shape and temperament still steer the silhouette and the motion.
+    "item": (["round", "square", "triangle"], ["proud and deliberate", "calm and floaty"]),
+    "prop": (["square", "broken", "round"], ["heavy and sluggish", "tired and droopy", "proud and deliberate"]),
+    "vfx": (["triangle", "flowing", "broken"], ["aggressive and driven", "nervy and darting", "calm and floaty"]),
 }
+ITEM_FEATURES = [
+    "a visible history: a dent, a chip, a patched repair or a scorch mark",
+    "an owner's mark: an engraving, a painted symbol, a stitched tag",
+    "one precious accent material (a gem, gold inlay, enamel) on a plain base",
+    "an unusual proportion: an oversized pommel, a tiny lock, a long neck",
+    "a material contrast: rough wood against polished metal, cloth against glass",
+    "something attached: a cord, a chain, a charm, a wax seal",
+]
+VFX_FEATURES = [
+    "a distinct core shape (a spiral, a ring, a spear, a petal burst) read at the peak frame",
+    "a two-tone signature: a hot core colour and a contrasting rim colour",
+    "debris that tells the element: shards, ash, droplets, leaves, glyphs",
+    "an asymmetric shape that leans in the direction of the cast",
+    "a lingering trace on the ground after it ends (a scorch, a frost ring, a stain)",
+    "a rhythm: two quick pulses before the big one",
+]
 
 
 def hsv_hex(h, s, v):
@@ -94,7 +114,8 @@ def roll(rng, role=None, rig="humanoid"):
     motion = dict(TEMPERAMENTS[temper], seed=rng.randrange(1, 1_000_000))
     return {
         "dominant_shape": f"{shape}: {SHAPES[shape]}",
-        "signature_feature": rng.choice(FEATURES),
+        "signature_feature": rng.choice(ITEM_FEATURES if role in ("item", "prop")
+                                        else VFX_FEATURES if role == "vfx" else FEATURES),
         "base_color": base,
         "accent_color": accent,
         "palette_kit_option": rng.choice(KITS),

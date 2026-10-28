@@ -30,7 +30,7 @@ Give the reviewer `ab1/a.png` and `ab1/b.png` (not `.key.json`) and ask which is
 
 ## 5. Stop
 
-Stop when a fresh reviewer's cold read is right, nothing is blocking, and the scores reach the bar, or after six rounds. Report the last scores and what still falls short.
+Stop when a fresh reviewer's cold read is right, nothing is blocking, and the scores reach the bar, or after three rounds by default (up to six when the user asks for final quality); each round costs a reviewer run. Report the last scores and what still falls short.
 
 ## Reviewer prompt (copy and fill in)
 
